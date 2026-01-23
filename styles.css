@@ -221,10 +221,39 @@ body {
   border: 1px solid var(--stroke);
 }
 
+.boosters-toggle {
+  width: 100%;
+  border: 1px solid rgba(255, 0, 212, 0.7);
+  background: linear-gradient(135deg, #ff00d4 0%, #ff8ad4 40%, #00e5ff 100%);
+  color: #08080f;
+  font-weight: 800;
+  padding: 14px 18px;
+  border-radius: 16px;
+  cursor: pointer;
+  letter-spacing: 0.6px;
+  box-shadow: 0 10px 26px rgba(255, 0, 212, 0.35), 0 6px 18px rgba(0, 229, 255, 0.25);
+  text-transform: uppercase;
+}
+
+.boosters-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(255, 0, 212, 0.45), 0 8px 20px rgba(0, 229, 255, 0.35);
+}
+
+.payment-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.payment-panel.collapsed .payment-body {
+  display: none;
+}
+
 .payment-panel {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 18px;
   padding: 16px 18px;
   border-radius: 18px;
@@ -460,7 +489,7 @@ body {
 
 .card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 16px;
   padding: 16px;
   background: var(--card);
@@ -823,7 +852,7 @@ textarea {
   }
 
   .card {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
   }
 }
 
@@ -843,12 +872,19 @@ textarea {
   }
 
   .card {
-    grid-template-columns: 1fr;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .card-main {
+    flex: 1;
   }
 
   .vote-panel {
     grid-template-columns: 1fr;
     justify-items: start;
+    margin-top: 2px;
   }
 
   .vote-row {

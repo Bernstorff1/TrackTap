@@ -34,22 +34,25 @@
         <h1>Stem det næste nummer frem.</h1>
         <p>Ønsker rangeres live efter score. DJ kan markere afspillet.</p>
         <div class="room-chip">Room: <strong>Baren · Fredag</strong></div>
-        <div class="payment-panel">
-          <div class="payment-copy">
-            <div class="payment-title">Køb ekstra stemmer</div>
-            <div class="payment-count"><span id="creditCount">0</span> kreditter klar</div>
-            <div class="payment-note">Sandbox · ingen rigtig betaling</div>
-          </div>
-          <div class="payment-buttons">
-            <button class="pay-btn pay-apple" data-pay="apple">
-              <span class="pay-icon"></span> Apple Pay <span class="pay-price">1 kr</span>
-            </button>
-            <button class="pay-btn pay-google" data-pay="google">
-              <span class="pay-icon">G</span> Google Pay <span class="pay-price">1 kr</span>
-            </button>
-            <button class="pay-btn pay-mobile" data-pay="mobilepay">
-              <span class="pay-icon">M</span> MobilePay <span class="pay-price">1 kr</span>
-            </button>
+        <div class="payment-panel collapsed" id="paymentPanel">
+          <button id="paymentToggle" class="boosters-toggle" type="button">Boosters</button>
+          <div class="payment-body">
+            <div class="payment-copy">
+              <div class="payment-title">Køb ekstra stemmer</div>
+              <div class="payment-count"><span id="creditCount">0</span> kreditter klar</div>
+              <div class="payment-note">Sandbox · ingen rigtig betaling</div>
+            </div>
+            <div class="payment-buttons">
+              <button class="pay-btn pay-apple" data-pay="apple">
+                <span class="pay-icon"></span> Apple Pay <span class="pay-price">1 kr</span>
+              </button>
+              <button class="pay-btn pay-google" data-pay="google">
+                <span class="pay-icon">G</span> Google Pay <span class="pay-price">1 kr</span>
+              </button>
+              <button class="pay-btn pay-mobile" data-pay="mobilepay">
+                <span class="pay-icon">M</span> MobilePay <span class="pay-price">1 kr</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
