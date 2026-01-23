@@ -1,0 +1,23 @@
+<svg width="520" height="160" viewBox="0 0 520 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrackTap logo">
+  <defs>
+    <linearGradient id="neonStroke" x1="24" y1="16" x2="152" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff00d4" />
+      <stop offset="1" stop-color="#00e5ff" />
+    </linearGradient>
+    <radialGradient id="neonGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(88 80) rotate(90) scale(56)">
+      <stop offset="0" stop-color="#ff00d4" stop-opacity="0.55" />
+      <stop offset="1" stop-color="#00e5ff" stop-opacity="0" />
+    </radialGradient>
+    <filter id="blurGlow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="12" />
+    </filter>
+  </defs>
+  <rect width="520" height="160" fill="none" />
+  <circle cx="88" cy="80" r="56" fill="url(#neonGlow)" filter="url(#blurGlow)" />
+  <rect x="28" y="24" width="120" height="112" rx="28" stroke="url(#neonStroke)" stroke-width="4" />
+  <path d="M60 60H112" stroke="#ff00d4" stroke-width="8" stroke-linecap="round" />
+  <path d="M86 60V112" stroke="#00e5ff" stroke-width="8" stroke-linecap="round" />
+  <circle cx="112" cy="100" r="10" fill="#00e5ff" />
+  <text x="180" y="96" font-family="'Space Grotesk', 'Arial Black', sans-serif" font-size="48" font-weight="700" fill="#f2f1f0" letter-spacing="1">TrackTap</text>
+  <text x="182" y="118" font-family="'Space Grotesk', Arial, sans-serif" font-size="14" fill="#a5a6b1">live music requests</text>
+</svg>
