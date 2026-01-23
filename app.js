@@ -25,6 +25,8 @@ const creditCount = document.getElementById("creditCount");
 const payButtons = document.querySelectorAll(".pay-btn");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
+const easterEggBtn = document.getElementById("easterEggBtn");
+const easterEgg = document.getElementById("easterEgg");
 const djModal = document.getElementById("djModal");
 const djForm = document.getElementById("djForm");
 const djPinInput = document.getElementById("djPin");
@@ -823,6 +825,14 @@ document.addEventListener("click", (event) => {
 
 paymentToggle.addEventListener("click", () => {
   paymentPanel.classList.toggle("collapsed");
+});
+
+
+easterEggBtn.addEventListener("click", () => {
+  easterEgg.classList.toggle("is-hidden");
+  easterEggBtn.textContent = easterEgg.classList.contains("is-hidden")
+    ? "Find easter egg"
+    : "Skjul easter egg";
 });
 
 trackTitleInput.addEventListener("input", () => {
