@@ -8,6 +8,12 @@ const modal = document.getElementById("modal");
 const addBtn = document.getElementById("addBtn");
 const closeModal = document.getElementById("closeModal");
 const cancelBtn = document.getElementById("cancelBtn");
+
+const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
+const ROOM_ID = "baren-fredag";
+let supabaseClient;
+let useRemote = true;
 const requestForm = document.getElementById("requestForm");
 const searchResults = document.getElementById("searchResults");
 const brandNameText = document.getElementById("brandNameText");
@@ -139,6 +145,118 @@ function persistRequests() {
   }
 }
 
+
+function mapRowToRequest(row) {
+  return {
+    id: row.id,
+    title: row.track_title || "",
+    artist: row.artist || "",
+    comment: row.comment || "",
+    status: row.status || "queued",
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    playedAt: row.played_at ? new Date(row.played_at).getTime() : null,
+    upvotes: row.upvotes ?? 0,
+    downvotes: row.downvotes ?? 0,
+    djPinned: !!row.dj_pinned,
+    paidBoosts: row.paid_boosts ?? 0,
+    cover: row.cover || "",
+    spotifyWebUrl: row.spotify_web_url || "",
+    spotifyAppUrl: row.spotify_app_url || "",
+  };
+}
+
+function mapRequestToRow(item) {
+  return {
+    id: item.id,
+    room_id: ROOM_ID,
+    track_title: item.title,
+    artist: item.artist,
+    comment: item.comment,
+    status: item.status,
+    created_at: new Date(item.createdAt).toISOString(),
+    played_at: item.playedAt ? new Date(item.playedAt).toISOString() : null,
+    upvotes: Number.isFinite(item.upvotes) ? item.upvotes : 0,
+    downvotes: item.downvotes,
+    dj_pinned: !!item.djPinned,
+    paid_boosts: item.paidBoosts || 0,
+    cover: item.cover || "",
+    spotify_web_url: item.spotifyWebUrl || "",
+    spotify_app_url: item.spotifyAppUrl || "",
+  };
+}
+
+async function fetchRequestsRemote() {
+  const { data, error } = await supabaseClient
+    .from("requests")
+    .select("*")
+    .eq("room_id", ROOM_ID);
+  if (error) throw error;
+  requests = (data || []).map(mapRowToRequest);
+  ensureSpotifyLinks();
+  renderLists();
+}
+
+function applyRealtimeChange(payload) {
+  if (payload.eventType === "DELETE") {
+    const id = payload.old.id;
+    requests = requests.filter((r) => r.id !== id);
+    renderLists();
+    return;
+  }
+  const row = payload.new;
+  if (row.room_id !== ROOM_ID) return;
+  const next = mapRowToRequest(row);
+  const idx = requests.findIndex((r) => r.id === next.id);
+  if (idx >= 0) {
+    requests[idx] = next;
+  } else {
+    requests.push(next);
+  }
+  ensureSpotifyLinks();
+  renderLists();
+}
+
+async function subscribeRequests() {
+  const channel = supabaseClient
+    .channel(`requests-${ROOM_ID}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "requests", filter: `room_id=eq.${ROOM_ID}` },
+      applyRealtimeChange
+    );
+  await channel.subscribe();
+}
+
+async function syncRequest(item) {
+  if (!useRemote) return;
+  const row = mapRequestToRow(item);
+  const { error } = await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
+  if (error) {
+    useRemote = false;
+  }
+}
+
+async function deleteRequestRemote(id) {
+  if (!useRemote) return;
+  const { error } = await supabaseClient.from("requests").delete().eq("id", id);
+  if (error) {
+    useRemote = false;
+  }
+}
+
+async function initSupabase() {
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    await fetchRequestsRemote();
+    await subscribeRequests();
+  } catch {
+    useRemote = false;
+    requests = loadRequests();
+    ensureSpotifyLinks();
+    renderLists();
+  }
+}
+
 function ensureSpotifyLinks() {
   requests = requests.map((item) => {
     if (item.spotifyWebUrl && item.spotifyAppUrl) return item;
@@ -214,6 +332,7 @@ function pruneLowScore(targetId) {
   if (scoreOf(item) <= -3) {
     requests = requests.filter((r) => r.id !== targetId);
     persistRequests();
+    deleteRequestRemote(targetId);
     return true;
   }
   return false;
@@ -479,22 +598,26 @@ function handleAction(id, action) {
       renderLists();
       return;
     }
+    syncRequest(item);
   }
 
   if (action === "play" && isDj) {
     item.status = "played";
     item.playedAt = Date.now();
+    syncRequest(item);
   }
 
   if (action === "unplay" && isDj) {
     item.status = "queued";
     item.playedAt = null;
+    syncRequest(item);
   }
 
   if (action === "delete" && isDj) {
     if ((item.paidBoosts || 0) > 0) return;
     requests = requests.filter((r) => r.id !== id);
     persistRequests();
+    deleteRequestRemote(id);
     renderLists();
     return;
   }
@@ -533,6 +656,7 @@ function handleAction(id, action) {
       item.paidBoosts = (item.paidBoosts || 0) + amount;
       persistCredits();
       persistRequests();
+      syncRequest(item);
       updateCreditsDisplay();
       if (action.startsWith("boostDown") && pruneLowScore(id)) {
         renderLists();
@@ -575,7 +699,7 @@ function addRequest(event) {
     title: track.title,
     artist: track.artist,
     comment,
-    upvotes: djPinned ? Number.POSITIVE_INFINITY : 0,
+    upvotes: 0,
     downvotes: 0,
     createdAt: Date.now(),
     status: "queued",
@@ -588,6 +712,7 @@ function addRequest(event) {
   selectedTrack = null;
   closeModalPanel();
   persistRequests();
+  syncRequest(requests[requests.length - 1]);
   renderLists();
 }
 
@@ -729,14 +854,15 @@ setInterval(() => {
 
 const storedBrand = localStorage.getItem("aller_brand_name");
 setBrandName(storedBrand || "Aller");
-requests = loadRequests();
-ensureSpotifyLinks();
+// defer to initSupabase for remote load
 const storedVotes = loadVotes();
 Object.entries(storedVotes).forEach(([key, value]) => {
   userVotes.set(key, Number(value));
 });
 voteCredits = loadCredits();
 updateCreditsDisplay();
+
+initSupabase();
 
 const djAuthed = sessionStorage.getItem("aller_dj_auth") === "true";
 if (djAuthed) {
