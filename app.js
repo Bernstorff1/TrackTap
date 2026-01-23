@@ -23,6 +23,8 @@ const brandEditToggle = document.getElementById("brandEditToggle");
 const brandMark = document.getElementById("brandMark");
 const creditCount = document.getElementById("creditCount");
 const payButtons = document.querySelectorAll(".pay-btn");
+const paymentPanel = document.getElementById("paymentPanel");
+const paymentToggle = document.getElementById("paymentToggle");
 const djModal = document.getElementById("djModal");
 const djForm = document.getElementById("djForm");
 const djPinInput = document.getElementById("djPin");
@@ -252,7 +254,7 @@ async function initSupabase() {
     await fetchRequestsRemote();
     await subscribeRequests();
     if (!remotePoll) {
-      remotePoll = setInterval(fetchRequestsRemote, 5000);
+      remotePoll = setInterval(fetchRequestsRemote, 60000);
     }
   } catch {
     useRemote = false;
@@ -489,7 +491,7 @@ function renderCard(item) {
   const upLabel = item.djPinned ? "∞" : item.upvotes;
   return `
     <article class="card" data-id="${item.id}">
-      <div>
+      <div class="card-main">
         <div class="badge">${item.status === "queued" ? "I kø" : "Afspillet"}</div>
         <div class="track-header">
           ${
@@ -760,6 +762,11 @@ document.addEventListener("click", (event) => {
   if (!target.closest(".boost-wrap")) {
     document.querySelectorAll(".boost-menu").forEach((menu) => menu.classList.add("is-hidden"));
   }
+});
+
+
+paymentToggle.addEventListener("click", () => {
+  paymentPanel.classList.toggle("collapsed");
 });
 
 trackTitleInput.addEventListener("input", () => {
