@@ -14,6 +14,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ROOM_ID = "baren-fredag";
 let supabaseClient;
 let useRemote = true;
+let remotePoll;
 const requestForm = document.getElementById("requestForm");
 const searchResults = document.getElementById("searchResults");
 const brandNameText = document.getElementById("brandNameText");
@@ -186,6 +187,7 @@ function mapRequestToRow(item) {
 }
 
 async function fetchRequestsRemote() {
+  if (!useRemote || !supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("requests")
     .select("*")
@@ -249,6 +251,9 @@ async function initSupabase() {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     await fetchRequestsRemote();
     await subscribeRequests();
+    if (!remotePoll) {
+      remotePoll = setInterval(fetchRequestsRemote, 5000);
+    }
   } catch {
     useRemote = false;
     requests = loadRequests();
