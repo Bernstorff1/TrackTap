@@ -149,6 +149,59 @@ function persistRequests() {
 }
 
 
+
+function mapSettingsRow(row) {
+  return {
+    roomId: row.room_id,
+    brandName: row.brand_name || "Aller",
+    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+  };
+}
+
+async function fetchSettingsRemote() {
+  if (!useRemote || !supabaseClient) return;
+  const { data, error } = await supabaseClient
+    .from("room_settings")
+    .select("*")
+    .eq("room_id", ROOM_ID)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) {
+    const settings = mapSettingsRow(data);
+    setBrandName(settings.brandName);
+  }
+}
+
+async function syncBrandName(name) {
+  if (!useRemote || !supabaseClient) return;
+  const row = {
+    room_id: ROOM_ID,
+    brand_name: name,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabaseClient.from("room_settings").upsert(row, { onConflict: "room_id" });
+  if (error) {
+    useRemote = false
+  }
+}
+
+function applySettingsChange(payload) {
+  if (!payload.new) return;
+  if (payload.new.room_id !== ROOM_ID) return;
+  setBrandName(payload.new.brand_name || "Aller");
+}
+
+async function subscribeSettings() {
+  const channel = supabaseClient
+    .channel(`settings-${ROOM_ID}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "room_settings", filter: `room_id=eq.${ROOM_ID}` },
+      applySettingsChange
+    );
+  await channel.subscribe();
+}
+
 function mapRowToRequest(row) {
   return {
     id: row.id,
@@ -252,7 +305,9 @@ async function initSupabase() {
   try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     await fetchRequestsRemote();
+    await fetchSettingsRemote();
     await subscribeRequests();
+    await subscribeSettings();
     if (!remotePoll) {
       remotePoll = setInterval(fetchRequestsRemote, 60000);
     }
@@ -327,6 +382,7 @@ function enableBrandEdit() {
 function disableBrandEdit(save = true) {
   if (save) {
     setBrandName(brandNameInput.value);
+    syncBrandName(brandNameInput.value);
   }
   brandNameInput.classList.add("is-hidden");
   brandNameText.classList.remove("is-hidden");
