@@ -11,7 +11,8 @@ const cancelBtn = document.getElementById("cancelBtn");
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
-const ROOM_ID = "baren-fredag";
+const params = new URLSearchParams(window.location.search);
+const ROOM_ID = (params.get("code") || "").trim().toUpperCase();
 let supabaseClient;
 let useRemote = true;
 let remotePoll;
@@ -21,6 +22,7 @@ const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
 const brandEditToggle = document.getElementById("brandEditToggle");
 const brandMark = document.getElementById("brandMark");
+const roomNameEl = document.getElementById("roomName");
 const creditCount = document.getElementById("creditCount");
 const payButtons = document.querySelectorAll(".pay-btn");
 const paymentPanel = document.getElementById("paymentPanel");
@@ -40,50 +42,31 @@ let searchTimer;
 let selectedTrack = null;
 let searchNonce = 0;
 let voteCredits = 0;
+let barHostPassword = "";
 
 const defaultRequests = [
   {
-    id: "r1",
+    id: "seed-superstition",
     title: "Superstition",
     artist: "Stevie Wonder",
-    comment: "Klar til dansegulvet",
-    upvotes: 18,
-    downvotes: 3,
-    createdAt: Date.now() - 1000 * 60 * 18,
-    status: "queued",
-  },
-  {
-    id: "r2",
-    title: "Murder on the Dancefloor",
-    artist: "Sophie Ellis-Bextor",
-    comment: "90'er energi!",
-    upvotes: 14,
-    downvotes: 2,
-    createdAt: Date.now() - 1000 * 60 * 12,
-    status: "queued",
-  },
-  {
-    id: "r3",
-    title: "Señorita",
-    artist: "Shawn Mendes",
     comment: "",
-    upvotes: 5,
-    downvotes: 7,
-    createdAt: Date.now() - 1000 * 60 * 7,
+    upvotes: 0,
+    downvotes: 0,
+    createdAt: Date.now(),
     status: "queued",
-  },
-  {
-    id: "r4",
-    title: "Take On Me",
-    artist: "a-ha",
-    comment: "All time classic",
-    upvotes: 22,
-    downvotes: 1,
-    createdAt: Date.now() - 1000 * 60 * 42,
-    status: "played",
-    playedAt: Date.now() - 1000 * 60 * 6,
   },
 ];
+
+const STORAGE_PREFIX = ROOM_ID ? `tapster_${ROOM_ID}_` : "tapster_";
+const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
+const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
+
+if (!ROOM_ID) {
+  window.location.assign("index.html");
+}
+if (roomNameEl && ROOM_ID) {
+  roomNameEl.textContent = ROOM_ID;
+}
 
 let requests = [];
 
@@ -92,7 +75,7 @@ let requests = [];
 
 function loadCredits() {
   try {
-    const raw = localStorage.getItem("aller_credits");
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}credits`);
     return raw ? Number(raw) : 0;
   } catch {
     return 0;
@@ -101,7 +84,7 @@ function loadCredits() {
 
 function persistCredits() {
   try {
-    localStorage.setItem("aller_credits", String(voteCredits));
+    localStorage.setItem(`${STORAGE_PREFIX}credits`, String(voteCredits));
   } catch {
     // ignore storage errors
   }
@@ -113,7 +96,7 @@ function updateCreditsDisplay() {
 
 function loadVotes() {
   try {
-    const raw = localStorage.getItem("aller_votes");
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}votes`);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -125,7 +108,7 @@ function loadVotes() {
 function persistVotes() {
   try {
     const obj = Object.fromEntries(userVotes.entries());
-    localStorage.setItem("aller_votes", JSON.stringify(obj));
+    localStorage.setItem(`${STORAGE_PREFIX}votes`, JSON.stringify(obj));
   } catch {
     // ignore storage errors
   }
@@ -133,7 +116,7 @@ function persistVotes() {
 
 function loadRequests() {
   try {
-    const raw = localStorage.getItem("aller_requests");
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}requests`);
     if (!raw) return [...defaultRequests];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [...defaultRequests];
@@ -144,7 +127,7 @@ function loadRequests() {
 
 function persistRequests() {
   try {
-    localStorage.setItem("aller_requests", JSON.stringify(requests));
+    localStorage.setItem(`${STORAGE_PREFIX}requests`, JSON.stringify(requests));
   } catch {
     // ignore storage errors
   }
@@ -152,54 +135,57 @@ function persistRequests() {
 
 
 
-function mapSettingsRow(row) {
+function mapBarRow(row) {
   return {
-    roomId: row.room_id,
-    brandName: row.brand_name || "Aller",
-    updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
+    code: row.code,
+    barName: row.bar_name || "Tapster",
+    playlistName: row.playlist_name || "",
+    hostPassword: row.host_password || "",
   };
 }
 
-async function fetchSettingsRemote() {
-  if (!useRemote || !supabaseClient) return;
-  const { data, error } = await supabaseClient
-    .from("room_settings")
-    .select("*")
-    .eq("room_id", ROOM_ID)
-    .maybeSingle();
+async function fetchBarRemote() {
+  if (!useRemote || !supabaseClient) return null;
+  const { data, error } = await supabaseClient.from("bars").select("*").eq("code", ROOM_ID).maybeSingle();
   if (error) throw error;
-  if (data) {
-    const settings = mapSettingsRow(data);
-    setBrandName(settings.brandName);
+  if (!data) {
+    window.location.assign("index.html");
+    return null;
   }
+  const bar = mapBarRow(data);
+  setBrandName(bar.barName);
+  updateRoomChip(bar);
+  barHostPassword = bar.hostPassword || "";
+  if (barHostPassword) {
+    localStorage.setItem(HOST_PASSWORD_KEY, barHostPassword);
+  }
+  return bar;
 }
 
 async function syncBrandName(name) {
   if (!useRemote || !supabaseClient) return;
-  const row = {
-    room_id: ROOM_ID,
-    brand_name: name,
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabaseClient.from("room_settings").upsert(row, { onConflict: "room_id" });
+  const { error } = await supabaseClient.from("bars").update({ bar_name: name }).eq("code", ROOM_ID);
   if (error) {
-    useRemote = false
+    useRemote = false;
   }
 }
 
-function applySettingsChange(payload) {
+function applyBarChange(payload) {
   if (!payload.new) return;
-  if (payload.new.room_id !== ROOM_ID) return;
-  setBrandName(payload.new.brand_name || "Aller");
+  if (payload.new.code !== ROOM_ID) return;
+  const bar = mapBarRow(payload.new);
+  setBrandName(bar.barName);
+  updateRoomChip(bar);
+  barHostPassword = bar.hostPassword || barHostPassword;
 }
 
-async function subscribeSettings() {
+async function subscribeBar() {
   const channel = supabaseClient
-    .channel(`settings-${ROOM_ID}`)
+    .channel(`bars-${ROOM_ID}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "room_settings", filter: `room_id=eq.${ROOM_ID}` },
-      applySettingsChange
+      { event: "*", schema: "public", table: "bars", filter: `code=eq.${ROOM_ID}` },
+      applyBarChange
     );
   await channel.subscribe();
 }
@@ -243,6 +229,13 @@ function mapRequestToRow(item) {
   };
 }
 
+async function seedInitialRequestRemote() {
+  if (!useRemote || !supabaseClient) return;
+  const seed = { ...defaultRequests[0], id: `seed-${ROOM_ID}` };
+  const row = mapRequestToRow(seed);
+  await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
+}
+
 async function fetchRequestsRemote() {
   if (!useRemote || !supabaseClient) return;
   const { data, error } = await supabaseClient
@@ -250,7 +243,12 @@ async function fetchRequestsRemote() {
     .select("*")
     .eq("room_id", ROOM_ID);
   if (error) throw error;
-  requests = (data || []).map(mapRowToRequest);
+  if (!data || data.length === 0) {
+    await seedInitialRequestRemote();
+    requests = defaultRequests.map((item) => ({ ...item, id: `seed-${ROOM_ID}` }));
+  } else {
+    requests = data.map(mapRowToRequest);
+  }
   ensureSpotifyLinks();
   renderLists();
 }
@@ -307,9 +305,9 @@ async function initSupabase() {
   try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     await fetchRequestsRemote();
-    await fetchSettingsRemote();
+    await fetchBarRemote();
     await subscribeRequests();
-    await subscribeSettings();
+    await subscribeBar();
     if (!remotePoll) {
       remotePoll = setInterval(fetchRequestsRemote, 60000);
     }
@@ -338,8 +336,6 @@ function ensureSpotifyLinks() {
 }
 
 
-const HOST_PASSWORD_KEY = "tapster_host_password";
-const DJ_AUTH_KEY = "tapster_dj_auth";
 
 function openDjModal() {
   djError.textContent = "Forkert password. Prøv igen.";
@@ -373,7 +369,13 @@ function setBrandName(name) {
   } else {
     brandMark.textContent = clean[0].toUpperCase();
   }
-  localStorage.setItem("aller_brand_name", clean);
+  localStorage.setItem(`${STORAGE_PREFIX}brand_name`, clean);
+}
+
+function updateRoomChip(bar) {
+  if (!roomNameEl || !bar) return;
+  const label = bar.playlistName ? `${bar.barName} · ${bar.playlistName}` : bar.barName;
+  roomNameEl.textContent = label;
 }
 
 function enableBrandEdit() {
@@ -892,7 +894,7 @@ brandNameInput.addEventListener("keydown", (event) => {
 djForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const value = djPinInput.value.trim();
-  const storedPassword = localStorage.getItem(HOST_PASSWORD_KEY) || "";
+  const storedPassword = barHostPassword || localStorage.getItem(HOST_PASSWORD_KEY) || "";
   if (!storedPassword) {
     djError.textContent = "Ingen værts-password fundet. Opret bar først.";
     djError.classList.remove("is-hidden");
@@ -942,8 +944,9 @@ setInterval(() => {
   });
 }, 60000);
 
-const storedBrand = localStorage.getItem("aller_brand_name");
+const storedBrand = localStorage.getItem(`${STORAGE_PREFIX}brand_name`);
 setBrandName(storedBrand || "Tapster");
+barHostPassword = localStorage.getItem(HOST_PASSWORD_KEY) || "";
 // defer to initSupabase for remote load
 const storedVotes = loadVotes();
 Object.entries(storedVotes).forEach(([key, value]) => {

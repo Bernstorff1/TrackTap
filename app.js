@@ -33,7 +33,16 @@ const goHost = document.getElementById("goHost");
 const guestSuccessBack = document.getElementById("guestSuccessBack");
 const hostSuccessBack = document.getElementById("hostSuccessBack");
 
-const HOST_PASSWORD_KEY = "tapster_host_password";
+const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const GUEST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
+const HOST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
+const CREATE_HELPER_DEFAULT = "Udfyld bar-navn og password for at fortsætte.";
+
+function hostPasswordKey(code) {
+  return `tapster_${code}_host_password`;
+}
 
 function normalizeCode(value) {
   return value.toUpperCase().replace(/\s+/g, "");
@@ -45,6 +54,12 @@ function isValidCode(value) {
 
 function toggleHelper(helperEl, show) {
   helperEl.classList.toggle("visible", show);
+}
+
+function setHelperMessage(helperEl, message, show) {
+  if (!helperEl) return;
+  helperEl.textContent = message;
+  toggleHelper(helperEl, show);
 }
 
 function showScreen(id) {
@@ -139,49 +154,93 @@ function generateCode(length) {
   return out;
 }
 
-function joinAsGuest(code) {
-  return Promise.resolve(code);
+async function fetchBarByCode(code) {
+  if (!supabaseClient) return { data: null, error: new Error("Supabase not configured") };
+  return supabaseClient.from("bars").select("*").eq("code", code).maybeSingle();
 }
 
-function loginAsHost(code, password) {
-  return Promise.resolve({ code, password });
+async function joinAsGuest(code) {
+  const { data, error } = await fetchBarByCode(code);
+  if (error) throw error;
+  if (!data) throw new Error("not_found");
+  return data;
 }
 
-function createBar({ barName, playlistName, hostPassword }) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const sharedCode = generateCode(6);
-      resolve({
-        barName,
-        playlistName,
+async function loginAsHost(code, password) {
+  const { data, error } = await fetchBarByCode(code);
+  if (error) throw error;
+  if (!data) throw new Error("not_found");
+  if (password !== data.host_password) throw new Error("wrong_password");
+  return data;
+}
+
+async function seedInitialRequest(code) {
+  if (!supabaseClient) return;
+  const row = {
+    id: `seed-${code}`,
+    room_id: code,
+    track_title: "Superstition",
+    artist: "Stevie Wonder",
+    comment: "",
+    status: "queued",
+    created_at: new Date().toISOString(),
+    upvotes: 0,
+    downvotes: 0,
+    dj_pinned: false,
+    paid_boosts: 0,
+  };
+  await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
+}
+
+async function createBar({ barName, playlistName, hostPassword }) {
+  if (!supabaseClient) throw new Error("Supabase not configured");
+  const trimmedPlaylist = playlistName || null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const sharedCode = generateCode(6);
+    const { error } = await supabaseClient.from("bars").insert({
+      code: sharedCode,
+      bar_name: barName,
+      playlist_name: trimmedPlaylist,
+      host_password: hostPassword,
+    });
+    if (!error) {
+      await seedInitialRequest(sharedCode);
+      return {
         guestCode: sharedCode,
         hostCode: sharedCode,
         hostPassword,
-      });
-    }, 500);
-  });
+      };
+    }
+    if (error.code !== "23505") throw error;
+  }
+  throw new Error("code_collision");
 }
 
 guestInput.addEventListener("input", () => {
   const normalized = normalizeCode(guestInput.value).slice(0, 8);
   guestInput.value = normalized;
-  toggleHelper(guestHelper, normalized.length > 0 && !isValidCode(normalized));
+  setHelperMessage(guestHelper, GUEST_HELPER_DEFAULT, normalized.length > 0 && !isValidCode(normalized));
 });
 
 hostInput.addEventListener("input", () => {
   const normalized = normalizeCode(hostInput.value).slice(0, 8);
   hostInput.value = normalized;
-  toggleHelper(hostHelper, normalized.length > 0 && !isValidCode(normalized));
+  setHelperMessage(hostHelper, HOST_HELPER_DEFAULT, normalized.length > 0 && !isValidCode(normalized));
 });
 
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const code = normalizeCode(guestInput.value).slice(0, 8);
   const invalid = !isValidCode(code);
-  toggleHelper(guestHelper, invalid);
+  setHelperMessage(guestHelper, GUEST_HELPER_DEFAULT, invalid);
   if (invalid) return;
-  await joinAsGuest(code);
-  navigateTo(`/guest?code=${encodeURIComponent(code)}`);
+  try {
+    await joinAsGuest(code);
+    window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
+  } catch (error) {
+    const message = error.message === "not_found" ? "Koden findes ikke." : "Kunne ikke finde baren.";
+    setHelperMessage(guestHelper, message, true);
+  }
 });
 
 hostLoginForm.addEventListener("submit", async (event) => {
@@ -189,17 +248,32 @@ hostLoginForm.addEventListener("submit", async (event) => {
   const code = normalizeCode(hostInput.value).slice(0, 8);
   const password = hostPasswordInput.value.trim();
   const invalid = !isValidCode(code);
-  toggleHelper(hostHelper, invalid);
+  setHelperMessage(hostHelper, HOST_HELPER_DEFAULT, invalid);
   if (invalid) return;
-  if (password) {
-    localStorage.setItem(HOST_PASSWORD_KEY, password);
+  try {
+    if (password) {
+      localStorage.setItem(hostPasswordKey(code), password);
+    }
+    await loginAsHost(code, password);
+    window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
+  } catch (error) {
+    let message = "Kunne ikke logge ind.";
+    if (error.message === "not_found") message = "Koden findes ikke.";
+    if (error.message === "wrong_password") message = "Forkert password.";
+    setHelperMessage(hostHelper, message, true);
   }
-  await loginAsHost(code, password);
-  navigateTo(`/host?code=${encodeURIComponent(code)}`);
 });
 
 barNameInput.addEventListener("input", () => {
-  toggleHelper(createHelper, !barNameInput.value.trim());
+  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, !barNameInput.value.trim());
+});
+
+hostPasswordCreate.addEventListener("input", () => {
+  setHelperMessage(
+    createHelper,
+    CREATE_HELPER_DEFAULT,
+    !barNameInput.value.trim() || !hostPasswordCreate.value.trim()
+  );
 });
 
 createForm.addEventListener("submit", async (event) => {
@@ -208,7 +282,7 @@ createForm.addEventListener("submit", async (event) => {
   const playlistName = playlistInput.value.trim();
   const password = hostPasswordCreate.value.trim();
   const invalid = !barName || !password;
-  toggleHelper(createHelper, invalid);
+  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, invalid);
   if (invalid) return;
 
   if (!createBtn.dataset.label) {
@@ -216,13 +290,17 @@ createForm.addEventListener("submit", async (event) => {
   }
   setLoading(createBtn, true, "Opretter...");
 
-  const result = await createBar({ barName, playlistName, hostPassword: password });
-  guestResultCode.textContent = result.guestCode;
-  hostResultPassword.textContent = result.hostPassword;
-  createSuccess.classList.remove("hidden");
-  localStorage.setItem(HOST_PASSWORD_KEY, result.hostPassword);
-
-  setLoading(createBtn, false, "Opretter...");
+  try {
+    const result = await createBar({ barName, playlistName, hostPassword: password });
+    guestResultCode.textContent = result.guestCode;
+    hostResultPassword.textContent = result.hostPassword;
+    createSuccess.classList.remove("hidden");
+    localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPassword);
+  } catch (error) {
+    setHelperMessage(createHelper, "Kunne ikke oprette baren. Prøv igen.", true);
+  } finally {
+    setLoading(createBtn, false, "Opretter...");
+  }
 });
 
 tabs.forEach((tab) => {
