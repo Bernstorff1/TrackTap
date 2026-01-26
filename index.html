@@ -3,135 +3,154 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Aller — Musikønsker</title>
+    <title>Tapster</title>
+    <meta name="description" content="Tapster forbinder gæster og værter med musik og stemning på sekunder." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="bg-orb orb-1" aria-hidden="true"></div>
-    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-glow glow-one" aria-hidden="true"></div>
+    <div class="bg-glow glow-two" aria-hidden="true"></div>
+    <div class="bg-glow glow-three" aria-hidden="true"></div>
+
+    <div class="desktop-gate" role="status" aria-live="polite">
+      <div class="desktop-card">
+        <div class="desktop-title">Tapster er mobil-only</div>
+        <p>Åbn siden på din telefon for den fulde oplevelse.</p>
+      </div>
+    </div>
 
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" id="brandMark"><img src="public/icons/tracktap-icon.png" alt="TrackTap" /></div>
-        <div>
-          <div class="brand-name"><span id="brandNameText">Aller</span><input id="brandNameInput" class="brand-input is-hidden" type="text" value="Aller" aria-label="Rediger navn" /></div>
-          <div class="brand-sub">Live musikønsker</div>
+        <div class="brand-mark">
+          <img class="brand-logo" src="assets/TrackTap-logo.png" alt="Tapster logo" />
         </div>
-      </div>
-      <div class="role-toggle">
-        <span>Gæst</span>
-        <button id="brandEditToggle" class="brand-edit is-hidden" type="button">Rediger navn</button>
-        <label class="switch">
-          <input id="djMode" type="checkbox" />
-          <span class="slider"></span>
-        </label>
-        <span>DJ</span>
+        <div>
+          <div class="brand-name">Tapster</div>
+          <div class="brand-sub">Musik, stemning, fællesskab.</div>
+        </div>
       </div>
     </header>
 
-    <main class="app">
-      <section class="hero">
-        <h1>Stem det næste nummer frem.</h1>
-        <p>Ønsker rangeres live efter score. DJ kan markere afspillet.</p>
-        <div class="room-chip">Room: <strong>Baren · Fredag</strong></div>
-        <div class="payment-panel collapsed" id="paymentPanel">
-          <button id="paymentToggle" class="boosters-toggle" type="button">Boosters</button>
-          <div class="payment-body">
-            <div class="payment-copy">
-              <div class="payment-title">Køb ekstra stemmer</div>
-              <div class="payment-count"><span id="creditCount">0</span> kreditter klar</div>
-              <div class="payment-note">Sandbox · ingen rigtig betaling</div>
+    <main class="container">
+      <section id="screen-home" class="screen active">
+        <div class="hero">
+          <p class="eyebrow">Velkommen til Tapster</p>
+          <h1>Vælg din rolle og kom hurtigt i gang.</h1>
+          <p class="lead">Gæster finder bars og playlister på sekunder. Værter styrer stemningen live.</p>
+        </div>
+        <div id="guestInline" class="guest-inline">
+          <div class="card wide">
+            <div class="inline-header">
+              <h2>Gæst</h2>
+              <button id="guestInlineClose" class="btn ghost small" type="button">Tilbage</button>
             </div>
-            <div class="payment-buttons">
-              <button class="pay-btn pay-apple" data-pay="apple">
-                <span class="pay-icon"></span> Apple Pay <span class="pay-price">1 kr</span>
-              </button>
-              <button class="pay-btn pay-google" data-pay="google">
-                <span class="pay-icon">G</span> Google Pay <span class="pay-price">1 kr</span>
-              </button>
-              <button class="pay-btn pay-mobile" data-pay="mobilepay">
-                <span class="pay-icon">M</span> MobilePay <span class="pay-price">1 kr</span>
-              </button>
+            <p>Indtast din kode for at finde baren.</p>
+            <form id="guestForm" class="form">
+              <label class="field">
+                <span>Indtast kode</span>
+                <input id="guestCode" type="text" inputmode="text" maxlength="8" placeholder="F.eks. TAP123" />
+              </label>
+              <div id="guestHelper" class="helper">Koden skal være 6–8 tegn.</div>
+              <button class="btn primary" type="submit">Find bar/playliste</button>
+            </form>
+          </div>
+        </div>
+        <div id="hostInline" class="guest-inline">
+          <div class="card wide">
+            <div class="inline-header">
+              <h2>Vært</h2>
+              <button id="hostInlineClose" class="btn ghost small" type="button">Tilbage</button>
+            </div>
+            <p>Log ind med kode eller opret en ny bar.</p>
+            <div class="tabs">
+              <button class="tab active" data-tab="host-login" type="button">Log ind med kode</button>
+              <button class="tab" data-tab="host-create" type="button">Opret ny bar/playliste</button>
+            </div>
+            <div class="tab-panels">
+              <div class="tab-panel active" data-panel="host-login">
+                <form id="hostLoginForm" class="form">
+                  <label class="field">
+                    <span>Værtskode</span>
+                    <input id="hostCode" type="text" inputmode="text" maxlength="8" placeholder="F.eks. HOST77" />
+                  </label>
+                  <label class="field">
+                    <span>Password</span>
+                    <input id="hostPassword" type="password" placeholder="Indtast password" required />
+                  </label>
+                  <div id="hostHelper" class="helper">Koden skal være 6–8 tegn.</div>
+                  <button class="btn primary" type="submit">Gå til min bar</button>
+                </form>
+              </div>
+              <div class="tab-panel" data-panel="host-create">
+                <form id="createForm" class="form">
+                  <label class="field">
+                    <span>Bar-navn *</span>
+                    <input id="barName" type="text" placeholder="F.eks. Neon Loft" required />
+                  </label>
+                  <label class="field">
+                    <span>Playlist-navn (valgfrit)</span>
+                    <input id="playlistName" type="text" placeholder="F.eks. Late Night Grooves" />
+                  </label>
+                  <label class="field">
+                    <span>Værts-password *</span>
+                    <input id="hostPasswordCreate" type="password" placeholder="Vælg et password" required />
+                  </label>
+                  <div id="createHelper" class="helper">Udfyld bar-navn og password for at fortsætte.</div>
+                  <button id="createBtn" class="btn primary" type="submit">Opret</button>
+                </form>
+                <div id="createSuccess" class="result hidden">
+                  <div class="result-header">Bar klar!</div>
+                  <p>Del gæstekoden med dine gæster, og behold værtskoden til dig selv.</p>
+                  <div class="code-grid">
+                    <div class="code-card">
+                      <div class="code-label">Kode</div>
+                      <div id="guestResultCode" class="code-value">-</div>
+                      <button class="btn ghost small copy-btn" data-copy="guest">Kopiér kode</button>
+                    </div>
+                    <div class="code-card">
+                      <div class="code-label">Værts-password</div>
+                      <div id="hostResultPassword" class="code-value">-</div>
+                      <button class="btn ghost small copy-btn" data-copy="host-password">Kopiér password</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        <div class="card-grid">
+          <article class="card neon-pink">
+            <h2>Jeg er gæst</h2>
+            <p>Hop ind med din kode og find barens playliste.</p>
+            <button id="goGuest" class="btn primary" type="button">Indtast gæstekode</button>
+          </article>
+          <article class="card neon-cyan">
+            <h2>Jeg er vært</h2>
+            <p>Log ind eller opret en ny bar med det samme.</p>
+            <button id="goHost" class="btn ghost" type="button">Gå til værtsområde</button>
+          </article>
+        </div>
       </section>
 
-      <section class="tabs">
-        <button class="tab active" data-tab="queued">
-          Ønsker <span id="queuedCount" class="pill">0</span>
-        </button>
-        <button class="tab" data-tab="played">
-          Afspillet <span id="playedCount" class="pill">0</span>
-        </button>
+      <section id="screen-guest-success" class="screen">
+        <div class="card wide">
+          <h2>Du er inde som gæst</h2>
+          <p>Din kode: <span id="guestCodeText" class="code-inline"></span></p>
+          <button id="guestSuccessBack" class="btn ghost" type="button">Tilbage til start</button>
+        </div>
       </section>
 
-      <section class="lists">
-        <div id="queuedList" class="list active" data-list="queued"></div>
-        <div id="playedList" class="list" data-list="played"></div>
+      <section id="screen-host-success" class="screen">
+        <div class="card wide">
+          <h2>Du er inde som vært</h2>
+          <p>Din kode: <span id="hostCodeText" class="code-inline"></span></p>
+          <button id="hostSuccessBack" class="btn ghost" type="button">Tilbage til start</button>
+        </div>
       </section>
     </main>
 
-    <button id="addBtn" class="fab" aria-label="Tilføj ønske">+</button>
+    <footer class="footer">© Tapster</footer>
 
-    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h2>Nyt musikønske</h2>
-          <button id="closeModal" class="ghost">Luk</button>
-        </div>
-        <form id="requestForm">
-          <label>
-            Track title *
-            <input id="trackTitle" type="text" required placeholder="Fx 'Superstition'" />
-          </label>
-          <div class="autocomplete">
-            <div class="helper">Søg i Deezer og vælg track</div>
-            <ul id="searchResults" class="search-results" aria-live="polite"></ul>
-          </div>
-          <label>
-            Artist
-            <input id="trackArtist" type="text" placeholder="Fx Stevie Wonder" />
-          </label>
-          <label>
-            Kommentar
-            <textarea id="trackComment" rows="3" placeholder="Valgfrit"></textarea>
-          </label>
-          <div class="actions">
-            <button type="button" id="cancelBtn" class="ghost">Annuller</button>
-            <button type="submit" class="primary">Send ønske</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-
-    <div id="djModal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h2>DJ adgang</h2>
-          <button id="closeDjModal" class="ghost">Luk</button>
-        </div>
-        <form id="djForm">
-          <label>
-            4-cifret kode
-            <input id="djPin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="••••" />
-          </label>
-          <div id="djError" class="form-error is-hidden">Forkert kode. Prøv igen.</div>
-          <div class="actions">
-            <button type="button" id="cancelDj" class="ghost">Annuller</button>
-            <button type="submit" class="primary">Lås op</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <footer class="footer">
-      <div>TrackTap · Live beats · All rights reserved-ish</div>
-      <button id="easterEggBtn" class="easter-btn" type="button">Find easter egg</button>
-      <div id="easterEgg" class="easter-egg is-hidden">Simon, Vis os dine klunker!</div>
-    </footer>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>
