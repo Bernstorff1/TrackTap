@@ -289,7 +289,7 @@ body {
 .payment-buttons {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .pay-btn {
@@ -301,11 +301,12 @@ body {
   font-size: 12px;
   cursor: pointer;
   transition: 0.2s ease;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
+  white-space: normal;
 }
 
 .pay-btn:hover {
@@ -365,7 +366,32 @@ body {
 
 #amountRange {
   width: 100%;
-  accent-color: #00e5ff;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0, 229, 255, 0.9), rgba(255, 0, 212, 0.9));
+  outline: none;
+}
+
+#amountRange::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f0f14;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.6);
+  cursor: pointer;
+}
+
+#amountRange::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f0f14;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.6);
+  cursor: pointer;
 }
 
 
