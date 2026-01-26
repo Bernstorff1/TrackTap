@@ -96,6 +96,9 @@ body {
   gap: 16px;
   position: relative;
   z-index: 2;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
 }
 
 .brand {
@@ -186,7 +189,8 @@ body {
 .app {
   position: relative;
   z-index: 2;
-  max-width: 980px;
+  width: 100%;
+  max-width: 430px;
   margin: 0 auto;
 }
 
@@ -855,7 +859,7 @@ textarea {
 .footer {
   margin: 36px auto 8px;
   padding: 18px 16px 10px;
-  max-width: 980px;
+  max-width: 430px;
   display: grid;
   gap: 10px;
   align-items: center;
@@ -980,15 +984,5 @@ textarea {
 
   .modal-card {
     width: min(560px, 100%);
-  }
-}
-
-@media (min-width: 820px) {
-  .topbar,
-  .app,
-  .footer {
-    max-width: 430px;
-    margin-left: auto;
-    margin-right: auto;
   }
 }
