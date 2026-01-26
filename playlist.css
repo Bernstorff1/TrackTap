@@ -289,7 +289,7 @@ body {
 .payment-buttons {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .pay-btn {
@@ -305,7 +305,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-width: 130px;
+  width: 100%;
 }
 
 .pay-btn:hover {
@@ -344,6 +344,28 @@ body {
 
 .pay-mobile {
   background: linear-gradient(135deg, rgba(255, 0, 212, 0.12), rgba(16, 18, 27, 0.9));
+}
+
+.amount-slider {
+  display: grid;
+  gap: 8px;
+}
+
+.amount-header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#amountValue {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+#amountRange {
+  width: 100%;
+  accent-color: #00e5ff;
 }
 
 
@@ -970,6 +992,7 @@ textarea {
   .payment-buttons {
     grid-template-columns: 1fr;
   }
+
 
   .tabs {
     position: sticky;

@@ -25,6 +25,8 @@ const brandMark = document.getElementById("brandMark");
 const roomNameEl = document.getElementById("roomName");
 const creditCount = document.getElementById("creditCount");
 const payButtons = document.querySelectorAll(".pay-btn");
+const amountRange = document.getElementById("amountRange");
+const amountValue = document.getElementById("amountValue");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
 const easterEggBtn = document.getElementById("easterEggBtn");
@@ -42,6 +44,7 @@ let searchTimer;
 let selectedTrack = null;
 let searchNonce = 0;
 let voteCredits = 0;
+let selectedAmount = 10;
 let barHostPassword = "";
 
 const defaultRequests = [
@@ -810,14 +813,37 @@ const trackTitleInput = document.getElementById("trackTitle");
 const trackArtistInput = document.getElementById("trackArtist");
 
 
+function updatePayPrices() {
+  document.querySelectorAll(".pay-price").forEach((priceEl) => {
+    priceEl.textContent = `${selectedAmount} kr`;
+  });
+}
+
+function updateAmountLabel() {
+  if (amountValue) amountValue.textContent = `${selectedAmount} kr`;
+}
+
 payButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    voteCredits += 1;
+    voteCredits += selectedAmount;
     persistCredits();
     updateCreditsDisplay();
     renderLists();
   });
 });
+
+if (amountRange) {
+  amountRange.addEventListener("input", () => {
+    const amount = Number(amountRange.value || "0");
+    selectedAmount = Number.isFinite(amount) ? amount : 0;
+    updateAmountLabel();
+    updatePayPrices();
+  });
+  const initialAmount = Number(amountRange.value || "10");
+  selectedAmount = Number.isFinite(initialAmount) ? initialAmount : 10;
+  updateAmountLabel();
+  updatePayPrices();
+}
 
 
 document.addEventListener("click", (event) => {
@@ -954,6 +980,7 @@ Object.entries(storedVotes).forEach(([key, value]) => {
 });
 voteCredits = loadCredits();
 updateCreditsDisplay();
+updatePayPrices();
 
 initSupabase();
 
