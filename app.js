@@ -107,11 +107,13 @@ function openAuthModal(mode) {
   authPrimary.dataset.mode = isSignup ? "signup" : "login";
   setHelperMessage(authHelper, "", false);
   authModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
 }
 
 function closeAuthModal() {
   if (!authModal) return;
   authModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 }
 
 function updateUserStatus(user) {
