@@ -22,6 +22,10 @@
           <div class="brand-sub">Musik, stemning, fællesskab.</div>
         </div>
       </div>
+      <div class="user-status" id="userStatus">
+        <span id="userLabel">Ikke logget ind</span>
+        <button id="signOutBtn" class="btn ghost small is-hidden" type="button">Log ud</button>
+      </div>
     </header>
 
     <main class="container">
@@ -46,6 +50,13 @@
               <div id="guestHelper" class="helper">Koden skal være 6–8 tegn.</div>
               <button class="btn primary" type="submit">Find bar/playliste</button>
             </form>
+            <div class="guest-auth">
+              <div class="guest-auth-title">Har du ikke en kode?</div>
+              <div class="guest-auth-actions">
+                <button id="guestLoginBtn" class="btn ghost small" type="button">Log ind</button>
+                <button id="guestSignupBtn" class="btn ghost small" type="button">Opret bruger</button>
+              </div>
+            </div>
           </div>
         </div>
         <div id="hostInline" class="guest-inline">
@@ -143,6 +154,35 @@
     </main>
 
     <footer class="footer">© Tapster</footer>
+
+    <div id="authModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="modal-card auth-card">
+        <div class="modal-header">
+          <h2 id="authTitle">Log ind</h2>
+          <button id="closeAuth" class="ghost">Luk</button>
+        </div>
+          <div class="auth-body">
+            <div class="auth-form">
+              <label class="field">
+                <span>Email</span>
+                <input id="authEmail" type="email" placeholder="navn@email.dk" />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input id="authPassword" type="password" placeholder="••••••••" />
+              </label>
+              <button id="authPrimary" class="btn primary" type="button">Log ind</button>
+              <div id="authHelper" class="helper">Fejl ved login.</div>
+              <div class="auth-divider"><span>eller</span></div>
+              <div class="auth-providers">
+              <button class="btn ghost auth-provider" type="button" data-provider="google">Continue with Google</button>
+              <button class="btn ghost auth-provider" type="button" data-provider="facebook">Continue with Facebook</button>
+              <button class="btn ghost auth-provider" type="button" data-provider="email">Continue with Email</button>
+              </div>
+            </div>
+          </div>
+      </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>

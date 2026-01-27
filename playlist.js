@@ -37,6 +37,8 @@ const djPinInput = document.getElementById("djPin");
 const djError = document.getElementById("djError");
 const closeDjModal = document.getElementById("closeDjModal");
 const cancelDj = document.getElementById("cancelDj");
+const menuBtn = document.getElementById("menuBtn");
+const menuPanel = document.getElementById("menuPanel");
 
 const userVotes = new Map();
 let isDj = false;
@@ -858,6 +860,42 @@ document.addEventListener("click", (event) => {
 paymentToggle.addEventListener("click", () => {
   paymentPanel.classList.toggle("collapsed");
 });
+
+if (menuBtn && menuPanel) {
+  menuBtn.addEventListener("click", () => {
+    menuPanel.classList.toggle("is-hidden");
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target === menuBtn || menuPanel.contains(target)) return;
+    menuPanel.classList.add("is-hidden");
+  });
+
+  menuPanel.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const action = target.getAttribute("data-action");
+    if (!action) return;
+    if (action === "back-home") {
+      window.location.assign("index.html");
+      return;
+    }
+    if (action === "switch-bar") {
+      const next = window.prompt("Indtast ny kode:");
+      if (next) window.location.assign(`playlist.html?code=${encodeURIComponent(next.trim())}`);
+      return;
+    }
+    if (action === "profile") {
+      window.alert("Profil kommer snart.");
+      return;
+    }
+    if (action === "rules") {
+      window.alert("Regler kommer snart.");
+    }
+  });
+}
 
 
 easterEggBtn.addEventListener("click", () => {

@@ -8,6 +8,8 @@ const guestHelper = document.getElementById("guestHelper");
 const guestCodeText = document.getElementById("guestCodeText");
 const guestInline = document.getElementById("guestInline");
 const guestInlineClose = document.getElementById("guestInlineClose");
+const guestLoginBtn = document.getElementById("guestLoginBtn");
+const guestSignupBtn = document.getElementById("guestSignupBtn");
 const hostInline = document.getElementById("hostInline");
 const hostInlineClose = document.getElementById("hostInlineClose");
 
@@ -40,6 +42,17 @@ const GUEST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
 const HOST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
 const CREATE_HELPER_DEFAULT = "Udfyld bar-navn og password for at fortsætte.";
 
+const authModal = document.getElementById("authModal");
+const authTitle = document.getElementById("authTitle");
+const authPrimary = document.getElementById("authPrimary");
+const closeAuth = document.getElementById("closeAuth");
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const authHelper = document.getElementById("authHelper");
+const authProviderButtons = Array.from(document.querySelectorAll(".auth-provider"));
+const userLabel = document.getElementById("userLabel");
+const signOutBtn = document.getElementById("signOutBtn");
+
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
 }
@@ -62,6 +75,14 @@ function setHelperMessage(helperEl, message, show) {
   toggleHelper(helperEl, show);
 }
 
+function authRedirectUrl() {
+  const { origin, pathname } = window.location;
+  if (pathname.includes("/TrackTap/")) {
+    return `${origin}/TrackTap/`;
+  }
+  return `${origin}/`;
+}
+
 function showScreen(id) {
   screens.forEach((screen) => {
     screen.classList.toggle("active", screen.id === id);
@@ -76,6 +97,33 @@ function setGuestInlineVisible(isVisible) {
 function setHostInlineVisible(isVisible) {
   if (!hostInline) return;
   hostInline.classList.toggle("active", isVisible);
+}
+
+function openAuthModal(mode) {
+  if (!authModal || !authTitle || !authPrimary) return;
+  const isSignup = mode === "signup";
+  authTitle.textContent = isSignup ? "Opret bruger" : "Log ind";
+  authPrimary.textContent = isSignup ? "Opret bruger" : "Log ind";
+  authPrimary.dataset.mode = isSignup ? "signup" : "login";
+  setHelperMessage(authHelper, "", false);
+  authModal.classList.remove("hidden");
+}
+
+function closeAuthModal() {
+  if (!authModal) return;
+  authModal.classList.add("hidden");
+}
+
+function updateUserStatus(user) {
+  if (!userLabel || !signOutBtn) return;
+  if (!user) {
+    userLabel.textContent = "Ikke logget ind";
+    signOutBtn.classList.add("is-hidden");
+    return;
+  }
+  const display = user.user_metadata?.full_name || user.email || "Bruger";
+  userLabel.textContent = `Logget ind: ${display}`;
+  signOutBtn.classList.remove("is-hidden");
 }
 
 function parseRoute() {
@@ -356,6 +404,101 @@ if (hostInlineClose) {
     setHostInlineVisible(false);
   });
 }
+
+if (guestLoginBtn) {
+  guestLoginBtn.addEventListener("click", () => openAuthModal("login"));
+}
+if (guestSignupBtn) {
+  guestSignupBtn.addEventListener("click", () => openAuthModal("signup"));
+}
+if (closeAuth) {
+  closeAuth.addEventListener("click", closeAuthModal);
+}
+if (authModal) {
+  authModal.addEventListener("click", (event) => {
+    if (event.target === authModal) closeAuthModal();
+  });
+}
+
+if (signOutBtn) {
+  signOutBtn.addEventListener("click", async () => {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    updateUserStatus(null);
+  });
+}
+
+if (supabaseClient) {
+  supabaseClient.auth.getSession().then(({ data }) => {
+    updateUserStatus(data?.session?.user || null);
+  });
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    updateUserStatus(session?.user || null);
+    if (session?.user) closeAuthModal();
+  });
+}
+
+if (authPrimary) {
+  authPrimary.addEventListener("click", async () => {
+    if (!supabaseClient) {
+      setHelperMessage(authHelper, "Auth ikke tilgængelig.", true);
+      return;
+    }
+    const email = authEmail?.value.trim() || "";
+    const password = authPassword?.value.trim() || "";
+    if (!email || !password) {
+      setHelperMessage(authHelper, "Udfyld email og password.", true);
+      return;
+    }
+    setHelperMessage(authHelper, "", false);
+    const mode = authPrimary.dataset.mode || "login";
+    try {
+      if (mode === "signup") {
+        const { error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) throw error;
+        setHelperMessage(authHelper, "Tjek din mail for bekræftelse.", true);
+        return;
+      }
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      closeAuthModal();
+    } catch (error) {
+      setHelperMessage(authHelper, error.message || "Kunne ikke logge ind.", true);
+    }
+  });
+}
+
+authProviderButtons.forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    if (!supabaseClient) {
+      setHelperMessage(authHelper, "Auth ikke tilgængelig.", true);
+      return;
+    }
+    const provider = btn.getAttribute("data-provider");
+    if (!provider) return;
+    if (provider === "email") {
+      const email = authEmail?.value.trim() || "";
+      if (!email) {
+        setHelperMessage(authHelper, "Indtast din email først.", true);
+        return;
+      }
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: authRedirectUrl() },
+      });
+      if (error) {
+        setHelperMessage(authHelper, error.message || "Kunne ikke sende mail.", true);
+        return;
+      }
+      setHelperMessage(authHelper, "Magic link sendt til din email.", true);
+      return;
+    }
+    await supabaseClient.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: authRedirectUrl() },
+    });
+  });
+});
 
 window.addEventListener("popstate", handleRoute);
 
