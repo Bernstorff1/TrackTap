@@ -83,6 +83,17 @@ function authRedirectUrl() {
   return `${origin}/`;
 }
 
+async function completeOAuthRedirect() {
+  if (!supabaseClient) return;
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if (!code) return;
+  const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
+  if (!error) {
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}
+
 function showScreen(id) {
   screens.forEach((screen) => {
     screen.classList.toggle("active", screen.id === id);
@@ -431,8 +442,10 @@ if (signOutBtn) {
 }
 
 if (supabaseClient) {
-  supabaseClient.auth.getSession().then(({ data }) => {
-    updateUserStatus(data?.session?.user || null);
+  completeOAuthRedirect().finally(() => {
+    supabaseClient.auth.getSession().then(({ data }) => {
+      updateUserStatus(data?.session?.user || null);
+    });
   });
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     updateUserStatus(session?.user || null);
