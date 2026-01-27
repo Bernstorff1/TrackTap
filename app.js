@@ -37,7 +37,11 @@ const hostSuccessBack = document.getElementById("hostSuccessBack");
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
-const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
+    })
+  : null;
 const GUEST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
 const HOST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
 const CREATE_HELPER_DEFAULT = "Udfyld bar-navn og password for at fortsætte.";
@@ -87,10 +91,26 @@ async function completeOAuthRedirect() {
   if (!supabaseClient) return;
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
-  if (!code) return;
-  const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
-  if (!error) {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const accessToken = hashParams.get("access_token");
+  const refreshToken = hashParams.get("refresh_token");
+  if (code) {
+    const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
+    if (error) {
+      updateUserStatus(null);
+      return;
+    }
     window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
+  if (accessToken && refreshToken) {
+    const { error } = await supabaseClient.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (!error) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }
 }
 
