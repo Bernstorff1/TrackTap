@@ -92,6 +92,8 @@ body {
   gap: 10px;
   font-size: 12px;
   color: var(--muted);
+  position: relative;
+  z-index: 2;
 }
 
 .user-menu {
@@ -111,6 +113,11 @@ body {
   place-items: center;
 }
 
+#loginBtn {
+  position: relative;
+  z-index: 2;
+}
+
 .user-dropdown {
   position: absolute;
   right: 0;
@@ -122,7 +129,8 @@ body {
   min-width: 140px;
   display: grid;
   gap: 6px;
-  z-index: 100;
+  z-index: 200;
+  pointer-events: auto;
 }
 
 .brand-mark {

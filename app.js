@@ -459,11 +459,15 @@ if (authModal) {
 }
 
 if (signOutBtn) {
-  signOutBtn.addEventListener("click", async () => {
+  signOutBtn.addEventListener("click", async (event) => {
+    event.stopPropagation();
     if (!supabaseClient) return;
-    await supabaseClient.auth.signOut();
-    updateUserStatus(null);
-    if (userDropdown) userDropdown.classList.add("is-hidden");
+    try {
+      await supabaseClient.auth.signOut();
+    } finally {
+      updateUserStatus(null);
+      if (userDropdown) userDropdown.classList.add("is-hidden");
+    }
   });
 }
 
