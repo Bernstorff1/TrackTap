@@ -94,6 +94,37 @@ body {
   color: var(--muted);
 }
 
+.user-menu {
+  position: relative;
+}
+
+.avatar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(255, 0, 212, 0.25));
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.user-dropdown {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  background: rgba(12, 14, 22, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 140px;
+  display: grid;
+  gap: 6px;
+  z-index: 100;
+}
+
 .brand-mark {
   width: 44px;
   height: 44px;

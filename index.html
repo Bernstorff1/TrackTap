@@ -23,8 +23,13 @@
         </div>
       </div>
       <div class="user-status" id="userStatus">
-        <span id="userLabel">Ikke logget ind</span>
-        <button id="signOutBtn" class="btn ghost small is-hidden" type="button">Log ud</button>
+        <button id="loginBtn" class="btn ghost small" type="button">Log ind</button>
+        <div class="user-menu is-hidden" id="userMenu">
+          <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="Bruger menu">A</button>
+          <div class="user-dropdown is-hidden" id="userDropdown">
+            <button id="signOutBtn" class="menu-item" type="button">Log ud</button>
+          </div>
+        </div>
       </div>
     </header>
 

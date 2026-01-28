@@ -54,7 +54,10 @@ const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
 const authHelper = document.getElementById("authHelper");
 const authProviderButtons = Array.from(document.querySelectorAll(".auth-provider"));
-const userLabel = document.getElementById("userLabel");
+const loginBtn = document.getElementById("loginBtn");
+const userMenu = document.getElementById("userMenu");
+const userAvatarBtn = document.getElementById("userAvatarBtn");
+const userDropdown = document.getElementById("userDropdown");
 const signOutBtn = document.getElementById("signOutBtn");
 
 function hostPasswordKey(code) {
@@ -148,15 +151,17 @@ function closeAuthModal() {
 }
 
 function updateUserStatus(user) {
-  if (!userLabel || !signOutBtn) return;
+  if (!loginBtn || !userMenu || !userAvatarBtn) return;
   if (!user) {
-    userLabel.textContent = "Ikke logget ind";
-    signOutBtn.classList.add("is-hidden");
+    loginBtn.classList.remove("is-hidden");
+    userMenu.classList.add("is-hidden");
     return;
   }
-  const display = user.user_metadata?.full_name || user.email || "Bruger";
-  userLabel.textContent = `Logget ind: ${display}`;
-  signOutBtn.classList.remove("is-hidden");
+  const name = user.user_metadata?.full_name || user.email || "Bruger";
+  const initial = (name.trim()[0] || "B").toUpperCase();
+  userAvatarBtn.textContent = initial;
+  loginBtn.classList.add("is-hidden");
+  userMenu.classList.remove("is-hidden");
 }
 
 function parseRoute() {
@@ -458,6 +463,23 @@ if (signOutBtn) {
     if (!supabaseClient) return;
     await supabaseClient.auth.signOut();
     updateUserStatus(null);
+    if (userDropdown) userDropdown.classList.add("is-hidden");
+  });
+}
+
+if (loginBtn) {
+  loginBtn.addEventListener("click", () => openAuthModal("login"));
+}
+
+if (userAvatarBtn && userDropdown) {
+  userAvatarBtn.addEventListener("click", () => {
+    userDropdown.classList.toggle("is-hidden");
+  });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (userAvatarBtn.contains(target) || userDropdown.contains(target)) return;
+    userDropdown.classList.add("is-hidden");
   });
 }
 
