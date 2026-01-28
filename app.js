@@ -461,12 +461,21 @@ if (authModal) {
 if (signOutBtn) {
   signOutBtn.addEventListener("click", async (event) => {
     event.stopPropagation();
-    if (!supabaseClient) return;
+    updateUserStatus(null);
+    if (userDropdown) userDropdown.classList.add("is-hidden");
     try {
-      await supabaseClient.auth.signOut();
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
     } finally {
-      updateUserStatus(null);
-      if (userDropdown) userDropdown.classList.add("is-hidden");
+      // Force-clear any cached Supabase sessions.
+      try {
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith("sb-"))
+          .forEach((key) => localStorage.removeItem(key));
+      } catch {
+        // ignore storage errors
+      }
     }
   });
 }
