@@ -50,6 +50,7 @@ let searchNonce = 0;
 let voteCredits = 0;
 let selectedAmount = 10;
 let barHostPassword = "";
+let currentUser = null;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 
 const defaultRequests = [
@@ -91,12 +92,27 @@ function loadCredits() {
   }
 }
 
+async function syncCreditsToProfile() {
+  if (!supabaseClient || !currentUser) return;
+  try {
+    await supabaseClient.from("profiles").upsert({
+      id: currentUser.id,
+      credits: voteCredits,
+      display_name: currentUser.user_metadata?.full_name || currentUser.email || "Bruger",
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    // ignore profile sync errors
+  }
+}
+
 function persistCredits() {
   try {
     localStorage.setItem(`${STORAGE_PREFIX}credits`, String(voteCredits));
   } catch {
     // ignore storage errors
   }
+  syncCreditsToProfile();
 }
 
 function updateCreditsDisplay() {
@@ -327,9 +343,12 @@ async function initSupabase() {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseClient.auth.getSession().then(({ data }) => {
       updateProfileIcon(data?.session?.user || null);
+      const user = data?.session?.user || null;
+      if (user) loadCreditsForUser(user);
     });
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       updateProfileIcon(session?.user || null);
+      if (session?.user) loadCreditsForUser(session.user);
     });
     await fetchRequestsRemote();
     await fetchBarRemote();
@@ -362,9 +381,34 @@ function ensureSpotifyLinks() {
   });
 }
 
+async function loadCreditsForUser(user) {
+  if (!supabaseClient || !user) return;
+  try {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("credits")
+      .eq("id", user.id)
+      .maybeSingle();
+    const remoteCredits = Number(data?.credits ?? 0);
+    const localCredits = loadCredits();
+    if (localCredits > remoteCredits) {
+      voteCredits = localCredits;
+      await syncCreditsToProfile();
+    } else {
+      voteCredits = remoteCredits;
+      persistCredits();
+    }
+    updateCreditsDisplay();
+  } catch {
+    voteCredits = loadCredits();
+    updateCreditsDisplay();
+  }
+}
+
 
 
 function updateProfileIcon(user) {
+  currentUser = user || null;
   if (!menuBtn || !profileBtn || !loginBtn) return;
   if (!user) {
     profileBtn.classList.add("is-hidden");

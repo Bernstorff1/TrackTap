@@ -42,9 +42,17 @@ create table if not exists requests (
   spotify_app_url text
 );
 
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  credits int default 0,
+  updated_at timestamptz default now()
+);
+
 -- RLS policies (example)
 alter table playlists enable row level security;
 alter table requests enable row level security;
+alter table profiles enable row level security;
 
 create policy "public read playlists" on playlists for select using (true);
 create policy "user insert playlists" on playlists for insert with check (auth.uid() = owner_id);
@@ -53,4 +61,8 @@ create policy "public read requests" on requests for select using (true);
 create policy "public insert requests" on requests for insert with check (true);
 create policy "public update requests" on requests for update using (true) with check (true);
 create policy "public delete requests" on requests for delete using (true);
+
+create policy "users read own profile" on profiles for select using (auth.uid() = id);
+create policy "users upsert own profile" on profiles for insert with check (auth.uid() = id);
+create policy "users update own profile" on profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 ```

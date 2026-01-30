@@ -12,20 +12,6 @@ const profileName = document.getElementById("profileName");
 const profilePlaylists = document.getElementById("profilePlaylists");
 const creditsTotal = document.getElementById("creditsTotal");
 
-function sumCreditsFromStorage() {
-  let total = 0;
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("tapster_") && key.endsWith("_credits")) {
-        total += Number(localStorage.getItem(key) || 0);
-      }
-    });
-  } catch {
-    return 0;
-  }
-  return total;
-}
-
 async function loadProfile() {
   if (!supabaseClient) return;
   const { data } = await supabaseClient.auth.getSession();
@@ -38,7 +24,12 @@ async function loadProfile() {
   }
   const name = user.user_metadata?.full_name || user.email || "Bruger";
   profileName.textContent = name;
-  creditsTotal.textContent = String(sumCreditsFromStorage());
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("credits")
+    .eq("id", user.id)
+    .maybeSingle();
+  creditsTotal.textContent = String(Number(profile?.credits ?? 0));
 
   const { data: rows } = await supabaseClient
     .from("playlists")
