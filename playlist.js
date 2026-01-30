@@ -50,6 +50,7 @@ let searchNonce = 0;
 let voteCredits = 0;
 let selectedAmount = 10;
 let barHostPassword = "";
+const SEED_COVER_URL = "assets/seed-superstition.svg";
 
 const defaultRequests = [
   {
@@ -61,6 +62,7 @@ const defaultRequests = [
     downvotes: 0,
     createdAt: Date.now(),
     status: "queued",
+    cover: SEED_COVER_URL,
   },
 ];
 
@@ -206,6 +208,10 @@ async function subscribeBar() {
 }
 
 function mapRowToRequest(row) {
+  const seedCover =
+    !row.cover && row.track_title === "Superstition" && row.artist === "Stevie Wonder"
+      ? SEED_COVER_URL
+      : row.cover || "";
   return {
     id: row.id,
     title: row.track_title || "",
@@ -218,7 +224,7 @@ function mapRowToRequest(row) {
     downvotes: row.downvotes ?? 0,
     djPinned: !!row.dj_pinned,
     paidBoosts: row.paid_boosts ?? 0,
-    cover: row.cover || "",
+    cover: seedCover,
     spotifyWebUrl: row.spotify_web_url || "",
     spotifyAppUrl: row.spotify_app_url || "",
   };

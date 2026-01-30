@@ -246,6 +246,8 @@ function generateCode(length) {
   return out;
 }
 
+const SEED_COVER_URL = "assets/seed-superstition.svg";
+
 async function fetchBarByCode(code) {
   if (!supabaseClient) return { data: null, error: new Error("Supabase not configured") };
   return supabaseClient.from("playlists").select("*").eq("code", code).maybeSingle();
@@ -285,6 +287,7 @@ async function seedInitialRequest(code) {
     downvotes: 0,
     dj_pinned: false,
     paid_boosts: 0,
+    cover: SEED_COVER_URL,
   };
   await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
 }

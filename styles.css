@@ -84,6 +84,7 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
 }
 
 .user-status {
@@ -94,6 +95,7 @@ body {
   color: var(--muted);
   position: relative;
   z-index: 2;
+  flex-shrink: 0;
 }
 
 .user-menu {
@@ -722,12 +724,25 @@ body::after {
 
 @media (max-width: 520px) {
   .topbar {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
 
   .user-status {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .brand {
+    gap: 12px;
+  }
+
+  .brand-name {
+    font-size: 18px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
   }
 }
