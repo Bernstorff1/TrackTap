@@ -38,6 +38,8 @@ const djError = document.getElementById("djError");
 const closeDjModal = document.getElementById("closeDjModal");
 const cancelDj = document.getElementById("cancelDj");
 const menuBtn = document.getElementById("menuBtn");
+const loginBtn = document.getElementById("loginBtn");
+const profileBtn = document.getElementById("profileBtn");
 const menuPanel = document.getElementById("menuPanel");
 
 const userVotes = new Map();
@@ -309,6 +311,12 @@ async function deleteRequestRemote(id) {
 async function initSupabase() {
   try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient.auth.getSession().then(({ data }) => {
+      updateProfileIcon(data?.session?.user || null);
+    });
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      updateProfileIcon(session?.user || null);
+    });
     await fetchRequestsRemote();
     await fetchBarRemote();
     await subscribeRequests();
@@ -341,6 +349,21 @@ function ensureSpotifyLinks() {
 }
 
 
+
+function updateProfileIcon(user) {
+  if (!menuBtn || !profileBtn || !loginBtn) return;
+  if (!user) {
+    profileBtn.classList.add("is-hidden");
+    loginBtn.classList.remove("is-hidden");
+    menuBtn.classList.remove("is-hidden");
+    return;
+  }
+  const name = user.user_metadata?.full_name || user.email || "Bruger";
+  profileBtn.textContent = (name.trim()[0] || "B").toUpperCase();
+  profileBtn.classList.remove("is-hidden");
+  loginBtn.classList.add("is-hidden");
+  menuBtn.classList.add("is-hidden");
+}
 
 function openDjModal() {
   djError.textContent = "Forkert password. Prøv igen.";
@@ -861,15 +884,25 @@ paymentToggle.addEventListener("click", () => {
   paymentPanel.classList.toggle("collapsed");
 });
 
-if (menuBtn && menuPanel) {
-  menuBtn.addEventListener("click", () => {
-    menuPanel.classList.toggle("is-hidden");
-  });
+if (menuPanel) {
+  const toggleMenu = () => menuPanel.classList.toggle("is-hidden");
+  if (menuBtn) menuBtn.addEventListener("click", toggleMenu);
+  if (profileBtn) profileBtn.addEventListener("click", toggleMenu);
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      window.location.assign("index.html?login=1");
+    });
+  }
 
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target === menuBtn || menuPanel.contains(target)) return;
+    if (
+      (menuBtn && menuBtn.contains(target)) ||
+      (profileBtn && profileBtn.contains(target)) ||
+      menuPanel.contains(target)
+    )
+      return;
     menuPanel.classList.add("is-hidden");
   });
 
@@ -893,6 +926,27 @@ if (menuBtn && menuPanel) {
     }
     if (action === "rules") {
       window.alert("Regler kommer snart.");
+      return;
+    }
+    if (action === "logout") {
+      try {
+        if (supabaseClient) {
+          supabaseClient.auth.signOut({ scope: "global" });
+          supabaseClient.auth.signOut({ scope: "local" });
+        }
+      } finally {
+        try {
+          Object.keys(localStorage)
+            .filter((key) => key.startsWith("sb-"))
+            .forEach((key) => localStorage.removeItem(key));
+          Object.keys(sessionStorage)
+            .filter((key) => key.startsWith("sb-"))
+            .forEach((key) => sessionStorage.removeItem(key));
+        } catch {
+          // ignore storage errors
+        }
+        window.location.assign("index.html?logout=1");
+      }
     }
   });
 }

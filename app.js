@@ -13,14 +13,12 @@ const guestSignupBtn = document.getElementById("guestSignupBtn");
 const hostInline = document.getElementById("hostInline");
 const hostInlineClose = document.getElementById("hostInlineClose");
 
-const hostLoginForm = document.getElementById("hostLoginForm");
-const hostInput = document.getElementById("hostCode");
-const hostPasswordInput = document.getElementById("hostPassword");
 const hostHelper = document.getElementById("hostHelper");
+const hostPlaylists = document.getElementById("hostPlaylists");
+const refreshPlaylists = document.getElementById("refreshPlaylists");
 const hostCodeText = document.getElementById("hostCodeText");
 
 const createForm = document.getElementById("createForm");
-const barNameInput = document.getElementById("barName");
 const playlistInput = document.getElementById("playlistName");
 const hostPasswordCreate = document.getElementById("hostPasswordCreate");
 const createHelper = document.getElementById("createHelper");
@@ -30,8 +28,6 @@ const guestResultCode = document.getElementById("guestResultCode");
 const hostResultPassword = document.getElementById("hostResultPassword");
 const copyButtons = Array.from(document.querySelectorAll(".copy-btn"));
 
-const goGuest = document.getElementById("goGuest");
-const goHost = document.getElementById("goHost");
 const guestSuccessBack = document.getElementById("guestSuccessBack");
 const hostSuccessBack = document.getElementById("hostSuccessBack");
 
@@ -43,8 +39,8 @@ const supabaseClient = window.supabase
     })
   : null;
 const GUEST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
-const HOST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
-const CREATE_HELPER_DEFAULT = "Udfyld bar-navn og password for at fortsætte.";
+const HOST_HELPER_DEFAULT = "Log ind for at se dine playlister.";
+const CREATE_HELPER_DEFAULT = "Udfyld password for at fortsætte.";
 
 const authModal = document.getElementById("authModal");
 const authTitle = document.getElementById("authTitle");
@@ -58,7 +54,6 @@ const loginBtn = document.getElementById("loginBtn");
 const userMenu = document.getElementById("userMenu");
 const userAvatarBtn = document.getElementById("userAvatarBtn");
 const userDropdown = document.getElementById("userDropdown");
-const signOutBtn = document.getElementById("signOutBtn");
 
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
@@ -131,6 +126,7 @@ function setGuestInlineVisible(isVisible) {
 function setHostInlineVisible(isVisible) {
   if (!hostInline) return;
   hostInline.classList.toggle("active", isVisible);
+  document.body.classList.toggle("host-open", isVisible);
 }
 
 function openAuthModal(mode) {
@@ -182,6 +178,8 @@ function parseRoute() {
 
 function handleRoute() {
   const { path, code } = parseRoute();
+  const params = new URLSearchParams(window.location.search);
+  const loginParam = params.get("login");
 
   if (path.startsWith("/guest")) {
     if (code) {
@@ -205,15 +203,23 @@ function handleRoute() {
       showScreen("screen-host-success");
     } else {
       showScreen("screen-home");
-      setGuestInlineVisible(false);
+      setGuestInlineVisible(true);
       setHostInlineVisible(true);
     }
     return;
   }
 
   showScreen("screen-home");
-  setGuestInlineVisible(false);
+  setGuestInlineVisible(true);
   setHostInlineVisible(false);
+
+  if (loginParam === "1") {
+    openAuthModal("login");
+    params.delete("login");
+    const next = params.toString();
+    const nextUrl = next ? `${window.location.pathname}?${next}` : window.location.pathname;
+    window.history.replaceState({}, "", nextUrl);
+  }
 }
 
 function navigateTo(path) {
@@ -245,18 +251,23 @@ async function fetchBarByCode(code) {
   return supabaseClient.from("bars").select("*").eq("code", code).maybeSingle();
 }
 
+async function fetchMyPlaylists() {
+  if (!supabaseClient) return [];
+  const { data } = await supabaseClient.auth.getSession();
+  const user = data?.session?.user;
+  if (!user) return null;
+  const { data: rows } = await supabaseClient
+    .from("bars")
+    .select("code, bar_name, playlist_name, created_at")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+  return rows || [];
+}
+
 async function joinAsGuest(code) {
   const { data, error } = await fetchBarByCode(code);
   if (error) throw error;
   if (!data) throw new Error("not_found");
-  return data;
-}
-
-async function loginAsHost(code, password) {
-  const { data, error } = await fetchBarByCode(code);
-  if (error) throw error;
-  if (!data) throw new Error("not_found");
-  if (password !== data.host_password) throw new Error("wrong_password");
   return data;
 }
 
@@ -278,8 +289,12 @@ async function seedInitialRequest(code) {
   await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
 }
 
-async function createBar({ barName, playlistName, hostPassword }) {
+async function createBar({ playlistName, hostPassword }) {
   if (!supabaseClient) throw new Error("Supabase not configured");
+  const { data } = await supabaseClient.auth.getSession();
+  const user = data?.session?.user;
+  if (!user) throw new Error("auth_required");
+  const barName = user.user_metadata?.full_name || user.email || "Min bar";
   const trimmedPlaylist = playlistName || null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const sharedCode = generateCode(6);
@@ -288,6 +303,7 @@ async function createBar({ barName, playlistName, hostPassword }) {
       bar_name: barName,
       playlist_name: trimmedPlaylist,
       host_password: hostPassword,
+      owner_id: user.id,
     });
     if (!error) {
       await seedInitialRequest(sharedCode);
@@ -308,12 +324,6 @@ guestInput.addEventListener("input", () => {
   setHelperMessage(guestHelper, GUEST_HELPER_DEFAULT, normalized.length > 0 && !isValidCode(normalized));
 });
 
-hostInput.addEventListener("input", () => {
-  const normalized = normalizeCode(hostInput.value).slice(0, 8);
-  hostInput.value = normalized;
-  setHelperMessage(hostHelper, HOST_HELPER_DEFAULT, normalized.length > 0 && !isValidCode(normalized));
-});
-
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const code = normalizeCode(guestInput.value).slice(0, 8);
@@ -329,45 +339,41 @@ guestForm.addEventListener("submit", async (event) => {
   }
 });
 
-hostLoginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const code = normalizeCode(hostInput.value).slice(0, 8);
-  const password = hostPasswordInput.value.trim();
-  const invalid = !isValidCode(code);
-  setHelperMessage(hostHelper, HOST_HELPER_DEFAULT, invalid);
-  if (invalid) return;
-  try {
-    if (password) {
-      localStorage.setItem(hostPasswordKey(code), password);
-    }
-    await loginAsHost(code, password);
-    window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
-  } catch (error) {
-    let message = "Kunne ikke logge ind.";
-    if (error.message === "not_found") message = "Koden findes ikke.";
-    if (error.message === "wrong_password") message = "Forkert password.";
-    setHelperMessage(hostHelper, message, true);
-  }
-});
-
-barNameInput.addEventListener("input", () => {
-  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, !barNameInput.value.trim());
-});
-
 hostPasswordCreate.addEventListener("input", () => {
-  setHelperMessage(
-    createHelper,
-    CREATE_HELPER_DEFAULT,
-    !barNameInput.value.trim() || !hostPasswordCreate.value.trim()
-  );
+  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, !hostPasswordCreate.value.trim());
 });
+
+async function renderMyPlaylists() {
+  if (!hostPlaylists || !hostHelper) return;
+  const rows = await fetchMyPlaylists();
+  if (rows === null) {
+    setHelperMessage(hostHelper, HOST_HELPER_DEFAULT, true);
+    hostPlaylists.innerHTML = "";
+    return;
+  }
+  setHelperMessage(hostHelper, "", false);
+  if (!rows.length) {
+    hostPlaylists.innerHTML = "<div class=\"playlist-meta\">Ingen playlister endnu.</div>";
+    return;
+  }
+  hostPlaylists.innerHTML = rows
+    .map(
+      (row) => `
+        <div class="playlist-item">
+          <div class="playlist-name">${row.bar_name}</div>
+          <div class="playlist-meta">${row.playlist_name || "Ingen playlist-navn"} · ${row.code}</div>
+          <button class="btn ghost small" type="button" data-open="${row.code}">Åbn</button>
+        </div>
+      `
+    )
+    .join("");
+}
 
 createForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const barName = barNameInput.value.trim();
   const playlistName = playlistInput.value.trim();
   const password = hostPasswordCreate.value.trim();
-  const invalid = !barName || !password;
+  const invalid = !password;
   setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, invalid);
   if (invalid) return;
 
@@ -377,13 +383,18 @@ createForm.addEventListener("submit", async (event) => {
   setLoading(createBtn, true, "Opretter...");
 
   try {
-    const result = await createBar({ barName, playlistName, hostPassword: password });
+    const result = await createBar({ playlistName, hostPassword: password });
     guestResultCode.textContent = result.guestCode;
     hostResultPassword.textContent = result.hostPassword;
     createSuccess.classList.remove("hidden");
     localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPassword);
+    renderMyPlaylists();
   } catch (error) {
-    setHelperMessage(createHelper, "Kunne ikke oprette baren. Prøv igen.", true);
+    const message =
+      error.message === "auth_required"
+        ? "Du skal være logget ind for at oprette."
+        : "Kunne ikke oprette baren. Prøv igen.";
+    setHelperMessage(createHelper, message, true);
   } finally {
     setLoading(createBtn, false, "Opretter...");
   }
@@ -420,16 +431,6 @@ copyButtons.forEach((button) => {
   });
 });
 
-goGuest.addEventListener("click", () => {
-  showScreen("screen-home");
-  setGuestInlineVisible(true);
-  setHostInlineVisible(false);
-});
-goHost.addEventListener("click", () => {
-  showScreen("screen-home");
-  setGuestInlineVisible(false);
-  setHostInlineVisible(true);
-});
 guestSuccessBack.addEventListener("click", () => navigateTo("/"));
 hostSuccessBack.addEventListener("click", () => navigateTo("/"));
 if (guestInlineClose) {
@@ -440,6 +441,7 @@ if (guestInlineClose) {
 if (hostInlineClose) {
   hostInlineClose.addEventListener("click", () => {
     setHostInlineVisible(false);
+    setGuestInlineVisible(true);
   });
 }
 
@@ -458,31 +460,27 @@ if (authModal) {
   });
 }
 
-if (signOutBtn) {
-  signOutBtn.addEventListener("click", async (event) => {
-    event.stopPropagation();
-    if (userDropdown) userDropdown.classList.add("is-hidden");
-    try {
-      if (supabaseClient) {
-        await supabaseClient.auth.signOut({ scope: "global" });
-        await supabaseClient.auth.signOut({ scope: "local" });
-      }
-    } finally {
-      try {
-        Object.keys(localStorage)
-          .filter((key) => key.startsWith("sb-"))
-          .forEach((key) => localStorage.removeItem(key));
-        Object.keys(sessionStorage)
-          .filter((key) => key.startsWith("sb-"))
-          .forEach((key) => sessionStorage.removeItem(key));
-      } catch {
-        // ignore storage errors
-      }
-      updateUserStatus(null);
-      const next = `${window.location.pathname}?logout=1`;
-      window.location.assign(next);
+async function signOut() {
+  try {
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut({ scope: "global" });
+      await supabaseClient.auth.signOut({ scope: "local" });
     }
-  });
+  } finally {
+    try {
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("sb-"))
+        .forEach((key) => localStorage.removeItem(key));
+      Object.keys(sessionStorage)
+        .filter((key) => key.startsWith("sb-"))
+        .forEach((key) => sessionStorage.removeItem(key));
+    } catch {
+      // ignore storage errors
+    }
+    updateUserStatus(null);
+    const next = `${window.location.pathname}?logout=1`;
+    window.location.assign(next);
+  }
 }
 
 if (loginBtn) {
@@ -490,7 +488,8 @@ if (loginBtn) {
 }
 
 if (userAvatarBtn && userDropdown) {
-  userAvatarBtn.addEventListener("click", () => {
+  userAvatarBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
     userDropdown.classList.toggle("is-hidden");
   });
   document.addEventListener("click", (event) => {
@@ -501,15 +500,88 @@ if (userAvatarBtn && userDropdown) {
   });
 }
 
+if (userDropdown) {
+  userDropdown.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const action = target.getAttribute("data-action");
+    if (!action) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (action === "back-home") {
+      window.location.assign("index.html");
+      return;
+    }
+    if (action === "switch-bar") {
+      const next = window.prompt("Indtast ny kode:");
+      if (next) window.location.assign(`playlist.html?code=${encodeURIComponent(next.trim())}`);
+      return;
+    }
+    if (action === "create-playlist") {
+      showScreen("screen-home");
+      setGuestInlineVisible(false);
+      setHostInlineVisible(true);
+      userDropdown.classList.add("is-hidden");
+      renderMyPlaylists();
+      return;
+    }
+    if (action === "profile") {
+      window.alert("Profil kommer snart.");
+      return;
+    }
+    if (action === "rules") {
+      window.alert("Regler kommer snart.");
+      return;
+    }
+    if (action === "rename-bar") {
+      if (!supabaseClient) return;
+      supabaseClient.auth.getSession().then(({ data }) => {
+        const user = data?.session?.user;
+        if (!user) {
+          window.alert("Log ind for at ændre bar-navn.");
+          return;
+        }
+        const next = window.prompt("Nyt bar-navn:");
+        if (!next) return;
+        supabaseClient
+          .from("bars")
+          .update({ bar_name: next })
+          .eq("owner_id", user.id);
+      });
+      return;
+    }
+    if (action === "logout") {
+      signOut();
+    }
+  });
+}
+
 if (supabaseClient) {
   completeOAuthRedirect().finally(() => {
     supabaseClient.auth.getSession().then(({ data }) => {
       updateUserStatus(data?.session?.user || null);
+      renderMyPlaylists();
     });
   });
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     updateUserStatus(session?.user || null);
+    renderMyPlaylists();
     if (session?.user) closeAuthModal();
+  });
+}
+
+if (refreshPlaylists) {
+  refreshPlaylists.addEventListener("click", () => {
+    renderMyPlaylists();
+  });
+}
+
+if (hostPlaylists) {
+  hostPlaylists.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const code = target.getAttribute("data-open");
+    if (code) window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
   });
 }
 

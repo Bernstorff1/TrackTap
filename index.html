@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tapster</title>
     <meta name="description" content="Tapster forbinder gæster og værter med musik og stemning på sekunder." />
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=15" />
   </head>
   <body>
     <div class="bg-glow glow-one" aria-hidden="true"></div>
@@ -25,9 +25,13 @@
       <div class="user-status" id="userStatus">
         <button id="loginBtn" class="btn ghost small" type="button">Log ind</button>
         <div class="user-menu is-hidden" id="userMenu">
-          <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="Bruger menu">A</button>
-          <div class="user-dropdown is-hidden" id="userDropdown">
-            <button id="signOutBtn" class="menu-item" type="button">Log ud</button>
+          <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="Bruger">A</button>
+          <div class="menu-panel is-hidden" id="userDropdown">
+            <button class="menu-item" type="button" data-action="create-playlist">Opret playliste</button>
+            <button class="menu-item" type="button" data-action="profile">Se profil</button>
+            <button class="menu-item" type="button" data-action="rules">Regler</button>
+            <button class="menu-item" type="button" data-action="rename-bar">Rediger bar-navn</button>
+            <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
           </div>
         </div>
       </div>
@@ -36,14 +40,12 @@
     <main class="container">
       <section id="screen-home" class="screen active">
         <div class="hero">
-          <p class="eyebrow">Velkommen til Tapster</p>
-          <h1>Vælg din rolle og kom hurtigt i gang.</h1>
-          <p class="lead">Gæster finder bars og playlister på sekunder. Værter styrer stemningen live.</p>
+          <h1>Velkommen til Tapster</h1>
         </div>
-        <div id="guestInline" class="guest-inline">
+        <div id="guestInline" class="guest-inline active">
           <div class="card wide">
             <div class="inline-header">
-              <h2>Gæst</h2>
+              <h2>Find din Playliste</h2>
               <button id="guestInlineClose" class="btn ghost small" type="button">Tilbage</button>
             </div>
             <p>Indtast din kode for at finde baren.</p>
@@ -72,30 +74,19 @@
             </div>
             <p>Log ind med kode eller opret en ny bar.</p>
             <div class="tabs">
-              <button class="tab active" data-tab="host-login" type="button">Log ind med kode</button>
+              <button class="tab active" data-tab="host-login" type="button">Se mine playlister</button>
               <button class="tab" data-tab="host-create" type="button">Opret ny bar/playliste</button>
             </div>
             <div class="tab-panels">
               <div class="tab-panel active" data-panel="host-login">
-                <form id="hostLoginForm" class="form">
-                  <label class="field">
-                    <span>Værtskode</span>
-                    <input id="hostCode" type="text" inputmode="text" maxlength="8" placeholder="F.eks. HOST77" />
-                  </label>
-                  <label class="field">
-                    <span>Password</span>
-                    <input id="hostPassword" type="password" placeholder="Indtast password" required />
-                  </label>
-                  <div id="hostHelper" class="helper">Koden skal være 6–8 tegn.</div>
-                  <button class="btn primary" type="submit">Gå til min bar</button>
-                </form>
+                <div class="host-playlists">
+                  <div id="hostHelper" class="helper">Log ind for at se dine playlister.</div>
+                  <div id="hostPlaylists" class="playlist-list"></div>
+                  <button id="refreshPlaylists" class="btn ghost small" type="button">Opdater</button>
+                </div>
               </div>
               <div class="tab-panel" data-panel="host-create">
                 <form id="createForm" class="form">
-                  <label class="field">
-                    <span>Bar-navn *</span>
-                    <input id="barName" type="text" placeholder="F.eks. Neon Loft" required />
-                  </label>
                   <label class="field">
                     <span>Playlist-navn (valgfrit)</span>
                     <input id="playlistName" type="text" placeholder="F.eks. Late Night Grooves" />
@@ -104,7 +95,7 @@
                     <span>Værts-password *</span>
                     <input id="hostPasswordCreate" type="password" placeholder="Vælg et password" required />
                   </label>
-                  <div id="createHelper" class="helper">Udfyld bar-navn og password for at fortsætte.</div>
+                  <div id="createHelper" class="helper">Udfyld password for at fortsætte.</div>
                   <button id="createBtn" class="btn primary" type="submit">Opret</button>
                 </form>
                 <div id="createSuccess" class="result hidden">
@@ -127,18 +118,7 @@
             </div>
           </div>
         </div>
-        <div class="card-grid">
-          <article class="card neon-pink">
-            <h2>Jeg er gæst</h2>
-            <p>Hop ind med din kode og find barens playliste.</p>
-            <button id="goGuest" class="btn primary" type="button">Indtast gæstekode</button>
-          </article>
-          <article class="card neon-cyan">
-            <h2>Jeg er vært</h2>
-            <p>Log ind eller opret en ny bar med det samme.</p>
-            <button id="goHost" class="btn ghost" type="button">Gå til værtsområde</button>
-          </article>
-        </div>
+        <div class="card-grid single"></div>
       </section>
 
       <section id="screen-guest-success" class="screen">
@@ -176,20 +156,27 @@
                 <span>Password</span>
                 <input id="authPassword" type="password" placeholder="••••••••" />
               </label>
-              <button id="authPrimary" class="btn primary" type="button">Log ind</button>
-              <div id="authHelper" class="helper">Fejl ved login.</div>
-              <div class="auth-divider"><span>eller</span></div>
-              <div class="auth-providers">
-              <button class="btn ghost auth-provider" type="button" data-provider="google">Continue with Google</button>
-              <button class="btn ghost auth-provider" type="button" data-provider="facebook">Continue with Facebook</button>
-              <button class="btn ghost auth-provider" type="button" data-provider="email">Continue with Email</button>
-              </div>
+            <button id="authPrimary" class="btn primary auth-primary" type="button">Log ind</button>
+            <div id="authHelper" class="helper">Fejl ved login.</div>
+            <div class="auth-divider"><span>eller</span></div>
+            <div class="auth-providers">
+              <button class="btn ghost auth-provider" type="button" data-provider="google">
+                <span class="auth-icon">
+                  <img class="auth-icon-img" src="assets/Google-logo.png" alt="Google" />
+                </span>
+                <span class="auth-text">Continue with Google</span>
+              </button>
+              <button class="btn ghost auth-provider" type="button" data-provider="facebook">
+                <span class="auth-icon facebook">f</span>
+                <span class="auth-text">Continue with Facebook</span>
+              </button>
+            </div>
             </div>
           </div>
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=15"></script>
   </body>
 </html>

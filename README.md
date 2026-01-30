@@ -20,6 +20,7 @@ create table if not exists bars (
   bar_name text not null,
   playlist_name text,
   host_password text not null,
+  owner_id uuid references auth.users(id),
   created_at timestamptz default now()
 );
 
@@ -40,4 +41,16 @@ create table if not exists requests (
   spotify_web_url text,
   spotify_app_url text
 );
+
+-- RLS policies (example)
+alter table bars enable row level security;
+alter table requests enable row level security;
+
+create policy "public read bars" on bars for select using (true);
+create policy "user insert bars" on bars for insert with check (auth.uid() = owner_id);
+
+create policy "public read requests" on requests for select using (true);
+create policy "public insert requests" on requests for insert with check (true);
+create policy "public update requests" on requests for update using (true) with check (true);
+create policy "public delete requests" on requests for delete using (true);
 ```
