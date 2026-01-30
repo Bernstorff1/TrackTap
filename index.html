@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tapster</title>
     <meta name="description" content="Tapster forbinder gæster og værter med musik og stemning på sekunder." />
-    <link rel="stylesheet" href="styles.css?v=15" />
+    <link rel="stylesheet" href="styles.css?v=16" />
   </head>
   <body>
     <div class="bg-glow glow-one" aria-hidden="true"></div>
@@ -72,10 +72,10 @@
               <h2>Vært</h2>
               <button id="hostInlineClose" class="btn ghost small" type="button">Tilbage</button>
             </div>
-            <p>Log ind med kode eller opret en ny bar.</p>
+            <p>Opret en ny playliste.</p>
             <div class="tabs">
               <button class="tab active" data-tab="host-login" type="button">Se mine playlister</button>
-              <button class="tab" data-tab="host-create" type="button">Opret ny bar/playliste</button>
+              <button class="tab" data-tab="host-create" type="button">Opret ny playliste</button>
             </div>
             <div class="tab-panels">
               <div class="tab-panel active" data-panel="host-login">
@@ -99,7 +99,7 @@
                   <button id="createBtn" class="btn primary" type="submit">Opret</button>
                 </form>
                 <div id="createSuccess" class="result hidden">
-                <div class="result-header">Bar klar!</div>
+                <div class="result-header">Playliste klar!</div>
                 <p>Del koden med dine gæster, og gem passwordet til DJ-adgang.</p>
                   <div class="code-grid">
                     <div class="code-card">
@@ -177,6 +177,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=15"></script>
+    <script src="app.js?v=16"></script>
   </body>
 </html>

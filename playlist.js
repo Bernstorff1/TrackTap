@@ -147,20 +147,25 @@ function mapBarRow(row) {
     code: row.code,
     barName: row.bar_name || "Tapster",
     playlistName: row.playlist_name || "",
+    displayName: row.playlist_name || row.bar_name || "Tapster",
     hostPassword: row.host_password || "",
   };
 }
 
 async function fetchBarRemote() {
   if (!useRemote || !supabaseClient) return null;
-  const { data, error } = await supabaseClient.from("bars").select("*").eq("code", ROOM_ID).maybeSingle();
+  const { data, error } = await supabaseClient
+    .from("playlists")
+    .select("*")
+    .eq("code", ROOM_ID)
+    .maybeSingle();
   if (error) throw error;
   if (!data) {
     window.location.assign("index.html");
     return null;
   }
   const bar = mapBarRow(data);
-  setBrandName(bar.barName);
+  setBrandName(bar.displayName);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || "";
   if (barHostPassword) {
@@ -171,7 +176,10 @@ async function fetchBarRemote() {
 
 async function syncBrandName(name) {
   if (!useRemote || !supabaseClient) return;
-  const { error } = await supabaseClient.from("bars").update({ bar_name: name }).eq("code", ROOM_ID);
+  const { error } = await supabaseClient
+    .from("playlists")
+    .update({ playlist_name: name })
+    .eq("code", ROOM_ID);
   if (error) {
     useRemote = false;
   }
@@ -181,17 +189,17 @@ function applyBarChange(payload) {
   if (!payload.new) return;
   if (payload.new.code !== ROOM_ID) return;
   const bar = mapBarRow(payload.new);
-  setBrandName(bar.barName);
+  setBrandName(bar.displayName);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || barHostPassword;
 }
 
 async function subscribeBar() {
   const channel = supabaseClient
-    .channel(`bars-${ROOM_ID}`)
+    .channel(`playlists-${ROOM_ID}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "bars", filter: `code=eq.${ROOM_ID}` },
+      { event: "*", schema: "public", table: "playlists", filter: `code=eq.${ROOM_ID}` },
       applyBarChange
     );
   await channel.subscribe();
@@ -921,7 +929,7 @@ if (menuPanel) {
       return;
     }
     if (action === "profile") {
-      window.alert("Profil kommer snart.");
+      window.location.assign("profile.html");
       return;
     }
     if (action === "rules") {

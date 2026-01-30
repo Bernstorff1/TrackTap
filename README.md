@@ -15,7 +15,7 @@ Landing er på `/`, og playlisten ligger på `/playlist`.
 Kør følgende i Supabase SQL editor:
 
 ```sql
-create table if not exists bars (
+create table if not exists playlists (
   code text primary key,
   bar_name text not null,
   playlist_name text,
@@ -43,11 +43,11 @@ create table if not exists requests (
 );
 
 -- RLS policies (example)
-alter table bars enable row level security;
+alter table playlists enable row level security;
 alter table requests enable row level security;
 
-create policy "public read bars" on bars for select using (true);
-create policy "user insert bars" on bars for insert with check (auth.uid() = owner_id);
+create policy "public read playlists" on playlists for select using (true);
+create policy "user insert playlists" on playlists for insert with check (auth.uid() = owner_id);
 
 create policy "public read requests" on requests for select using (true);
 create policy "public insert requests" on requests for insert with check (true);

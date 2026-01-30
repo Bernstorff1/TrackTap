@@ -248,7 +248,7 @@ function generateCode(length) {
 
 async function fetchBarByCode(code) {
   if (!supabaseClient) return { data: null, error: new Error("Supabase not configured") };
-  return supabaseClient.from("bars").select("*").eq("code", code).maybeSingle();
+  return supabaseClient.from("playlists").select("*").eq("code", code).maybeSingle();
 }
 
 async function fetchMyPlaylists() {
@@ -257,7 +257,7 @@ async function fetchMyPlaylists() {
   const user = data?.session?.user;
   if (!user) return null;
   const { data: rows } = await supabaseClient
-    .from("bars")
+    .from("playlists")
     .select("code, bar_name, playlist_name, created_at")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false });
@@ -298,7 +298,7 @@ async function createBar({ playlistName, hostPassword }) {
   const trimmedPlaylist = playlistName || null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const sharedCode = generateCode(6);
-    const { error } = await supabaseClient.from("bars").insert({
+    const { error } = await supabaseClient.from("playlists").insert({
       code: sharedCode,
       bar_name: barName,
       playlist_name: trimmedPlaylist,
@@ -392,9 +392,9 @@ createForm.addEventListener("submit", async (event) => {
   } catch (error) {
     const message =
       error.message === "auth_required"
-        ? "Du skal være logget ind for at oprette."
-        : "Kunne ikke oprette baren. Prøv igen.";
-    setHelperMessage(createHelper, message, true);
+        ? "Du skal være logget ind for at oprette en playliste."
+        : `Kunne ikke oprette playliste. ${error?.message || "Prøv igen."}`;
+    setHelperMessage(createHelper, message.trim(), true);
   } finally {
     setLoading(createBtn, false, "Opretter...");
   }
@@ -526,7 +526,7 @@ if (userDropdown) {
       return;
     }
     if (action === "profile") {
-      window.alert("Profil kommer snart.");
+      window.location.assign("profile.html");
       return;
     }
     if (action === "rules") {
@@ -544,7 +544,7 @@ if (userDropdown) {
         const next = window.prompt("Nyt bar-navn:");
         if (!next) return;
         supabaseClient
-          .from("bars")
+          .from("playlists")
           .update({ bar_name: next })
           .eq("owner_id", user.id);
       });

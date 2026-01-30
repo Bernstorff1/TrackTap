@@ -303,6 +303,18 @@ body.host-open .card-grid {
   gap: 6px;
 }
 
+.playlist-item.clickable {
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.playlist-item.clickable:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
 .playlist-name {
   font-weight: 600;
 }
