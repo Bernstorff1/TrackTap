@@ -41,6 +41,13 @@ const menuBtn = document.getElementById("menuBtn");
 const loginBtn = document.getElementById("loginBtn");
 const profileBtn = document.getElementById("profileBtn");
 const menuPanel = document.getElementById("menuPanel");
+const qrBtn = document.getElementById("qrBtn");
+const qrModal = document.getElementById("qrModal");
+const closeQr = document.getElementById("closeQr");
+const qrImage = document.getElementById("qrImage");
+const qrLink = document.getElementById("qrLink");
+const boostersVisibility = document.getElementById("boostersVisibility");
+const boostersToggle = document.getElementById("boostersToggle");
 
 const userVotes = new Map();
 let isDj = false;
@@ -51,6 +58,7 @@ let voteCredits = 0;
 let selectedAmount = 10;
 let barHostPassword = "";
 let currentUser = null;
+const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 
 const defaultRequests = [
@@ -70,6 +78,7 @@ const defaultRequests = [
 const STORAGE_PREFIX = ROOM_ID ? `tapster_${ROOM_ID}_` : "tapster_";
 const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
 const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
+const BOOSTERS_VIS_KEY = `${STORAGE_PREFIX}boosters_visible`;
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -230,6 +239,7 @@ function mapRowToRequest(row) {
       : row.cover || "";
   return {
     id: row.id,
+    requesterId: row.requester_id || "",
     title: row.track_title || "",
     artist: row.artist || "",
     comment: row.comment || "",
@@ -239,7 +249,8 @@ function mapRowToRequest(row) {
     upvotes: row.upvotes ?? 0,
     downvotes: row.downvotes ?? 0,
     djPinned: !!row.dj_pinned,
-    paidBoosts: row.paid_boosts ?? 0,
+    paidBoostsUp: row.paid_boosts_up ?? row.paid_boosts ?? 0,
+    paidBoostsDown: row.paid_boosts_down ?? 0,
     cover: seedCover,
     spotifyWebUrl: row.spotify_web_url || "",
     spotifyAppUrl: row.spotify_app_url || "",
@@ -250,6 +261,7 @@ function mapRequestToRow(item) {
   return {
     id: item.id,
     room_id: ROOM_ID,
+    requester_id: item.requesterId || null,
     track_title: item.title,
     artist: item.artist,
     comment: item.comment,
@@ -259,7 +271,9 @@ function mapRequestToRow(item) {
     upvotes: Number.isFinite(item.upvotes) ? item.upvotes : 0,
     downvotes: item.downvotes,
     dj_pinned: !!item.djPinned,
-    paid_boosts: item.paidBoosts || 0,
+    paid_boosts: (item.paidBoostsUp || 0) + (item.paidBoostsDown || 0),
+    paid_boosts_up: item.paidBoostsUp || 0,
+    paid_boosts_down: item.paidBoostsDown || 0,
     cover: item.cover || "",
     spotify_web_url: item.spotifyWebUrl || "",
     spotify_app_url: item.spotifyAppUrl || "",
@@ -341,14 +355,23 @@ async function deleteRequestRemote(id) {
 async function initSupabase() {
   try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    supabaseClient.auth.getSession().then(({ data }) => {
-      updateProfileIcon(data?.session?.user || null);
-      const user = data?.session?.user || null;
-      if (user) loadCreditsForUser(user);
-    });
+    const { data } = await supabaseClient.auth.getSession();
+    const user = data?.session?.user || null;
+    updateProfileIcon(user);
+    if (!user) {
+      const next = encodeURIComponent(window.location.href);
+      window.location.assign(`index.html?login=1&next=${next}`);
+      return;
+    }
+    loadCreditsForUser(user);
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       updateProfileIcon(session?.user || null);
-      if (session?.user) loadCreditsForUser(session.user);
+      if (!session?.user) {
+        const next = encodeURIComponent(window.location.href);
+        window.location.assign(`index.html?login=1&next=${next}`);
+        return;
+      }
+      loadCreditsForUser(session.user);
     });
     await fetchRequestsRemote();
     await fetchBarRemote();
@@ -389,6 +412,13 @@ async function loadCreditsForUser(user) {
       .select("credits")
       .eq("id", user.id)
       .maybeSingle();
+    if (!data) {
+      voteCredits = 10;
+      await syncCreditsToProfile();
+      persistCredits();
+      updateCreditsDisplay();
+      return;
+    }
     const remoteCredits = Number(data?.credits ?? 0);
     const localCredits = loadCredits();
     if (localCredits > remoteCredits) {
@@ -413,7 +443,7 @@ function updateProfileIcon(user) {
   if (!user) {
     profileBtn.classList.add("is-hidden");
     loginBtn.classList.remove("is-hidden");
-    menuBtn.classList.remove("is-hidden");
+    menuBtn.classList.add("is-hidden");
     return;
   }
   const name = user.user_metadata?.full_name || user.email || "Bruger";
@@ -435,10 +465,47 @@ function closeDjModalPanel() {
   djModal.classList.add("hidden");
 }
 
+function buildPlaylistUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("code", ROOM_ID || "");
+  url.hash = "";
+  return url.toString();
+}
+
+function openQrModal() {
+  if (!qrModal || !qrImage || !qrLink) return;
+  const url = buildPlaylistUrl();
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
+  qrImage.src = qrUrl;
+  qrLink.textContent = url;
+  qrModal.classList.remove("hidden");
+}
+
+function closeQrModal() {
+  if (!qrModal) return;
+  qrModal.classList.add("hidden");
+}
+
 function setDjMode(enabled) {
   isDj = enabled;
   djToggle.checked = enabled;
   brandEditToggle.classList.toggle("is-hidden", !enabled);
+  if (paymentToggle && paymentPanel) {
+    paymentToggle.disabled = enabled;
+    if (enabled) {
+      paymentPanel.classList.add("collapsed");
+      paymentPanel.classList.add("dj-mode");
+    } else {
+      paymentPanel.classList.remove("dj-mode");
+    }
+  }
+  if (qrBtn) {
+    qrBtn.classList.toggle("is-hidden", !enabled);
+  }
+  if (boostersVisibility) {
+    boostersVisibility.classList.toggle("is-hidden", !enabled);
+  }
+  applyBoostersVisibility();
   if (!enabled) {
     disableBrandEdit(true);
   }
@@ -494,7 +561,7 @@ function pruneLowScore(targetId) {
 }
 
 function scoreOf(item) {
-  if (item.djPinned) return Number.POSITIVE_INFINITY;
+  if (item.djPinned) return DJ_BASE_SCORE + (item.upvotes - item.downvotes);
   return item.upvotes - item.downvotes;
 }
 
@@ -515,7 +582,7 @@ function sortQueued(a, b) {
   if (scoreDiff !== 0) return scoreDiff;
   const upDiff = b.upvotes - a.upvotes;
   if (upDiff !== 0) return upDiff;
-  return b.createdAt - a.createdAt;
+  return a.createdAt - b.createdAt;
 }
 
 function sortPlayed(a, b) {
@@ -629,14 +696,25 @@ function renderLists() {
   queuedCount.textContent = queued.length;
   playedCount.textContent = played.length;
 
+  document.querySelectorAll(".card").forEach((card) => {
+    card.classList.add("card-animate");
+  });
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".card").forEach((card) => {
+      card.classList.add("card-animate-in");
+    });
+  });
+
   attachCardHandlers();
 }
 
 function renderCard(item) {
   const vote = userVotes.get(item.id) || 0;
-  const disabled = item.status === "played" || item.djPinned || isDj;
-  const scoreLabel = item.djPinned ? "∞" : scoreOf(item);
-  const upLabel = item.djPinned ? "∞" : item.upvotes;
+  const disabled = item.status === "played" || isDj;
+  const scoreLabel = item.djPinned
+    ? `∞${item.upvotes - item.downvotes === 0 ? "" : item.upvotes - item.downvotes > 0 ? ` +${item.upvotes - item.downvotes}` : ` ${item.upvotes - item.downvotes}`}`
+    : scoreOf(item);
+  const upLabel = item.upvotes;
   return `
     <article class="card" data-id="${item.id}">
       <div class="card-main">
@@ -673,7 +751,7 @@ function renderCard(item) {
               : `<button class="ghost" data-action="unplay">Fortryd</button>`
           }
           ${
-            isDj && (item.paidBoosts || 0) === 0
+            isDj && ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0)) === 0
               ? `<button class="ghost" data-action="delete">Slet nummer</button>`
               : ``
           }
@@ -736,7 +814,7 @@ function handleAction(id, action) {
   if (!item) return;
 
   if (action === "up" || action === "down") {
-    if (item.status === "played" || item.djPinned || isDj) return;
+    if (item.status === "played" || isDj) return;
     const nextVote = action === "up" ? 1 : -1;
     const currentVote = userVotes.get(id) || 0;
     if (currentVote === nextVote) {
@@ -771,7 +849,7 @@ function handleAction(id, action) {
   }
 
   if (action === "delete" && isDj) {
-    if ((item.paidBoosts || 0) > 0) return;
+    if ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0) > 0) return;
     requests = requests.filter((r) => r.id !== id);
     persistRequests();
     deleteRequestRemote(id);
@@ -807,10 +885,11 @@ function handleAction(id, action) {
       voteCredits -= amount;
       if (action.startsWith("boostUp")) {
         item.upvotes += amount;
+        item.paidBoostsUp = (item.paidBoostsUp || 0) + amount;
       } else {
         item.downvotes += amount;
+        item.paidBoostsDown = (item.paidBoostsDown || 0) + amount;
       }
-      item.paidBoosts = (item.paidBoosts || 0) + amount;
       persistCredits();
       persistRequests();
       syncRequest(item);
@@ -849,15 +928,27 @@ function addRequest(event) {
 
   const track = selectedTrack || { title, artist };
   const spotifyLinks = spotifySearchLinks(track);
+  const key = `${track.title}::${track.artist || ""}`.toLowerCase();
+  const alreadyQueued = requests.some(
+    (item) =>
+      item.status === "queued" &&
+      `${item.title}::${item.artist || ""}`.toLowerCase() === key
+  );
+  if (alreadyQueued) {
+    return;
+  }
 
   const djPinned = isDj;
   requests.push({
     id: `r${Date.now()}`,
+    requesterId: currentUser?.id || "",
     title: track.title,
     artist: track.artist,
     comment,
     upvotes: 0,
     downvotes: 0,
+    paidBoostsUp: 0,
+    paidBoostsDown: 0,
     createdAt: Date.now(),
     status: "queued",
     spotifyWebUrl: spotifyLinks.web,
@@ -969,21 +1060,23 @@ if (menuPanel) {
     if (!(target instanceof Element)) return;
     const action = target.getAttribute("data-action");
     if (!action) return;
-    if (action === "back-home") {
+    if (action === "create-playlist") {
+      sessionStorage.setItem("tapster_open_host", "true");
       window.location.assign("index.html");
       return;
     }
-    if (action === "switch-bar") {
-      const next = window.prompt("Indtast ny kode:");
-      if (next) window.location.assign(`playlist.html?code=${encodeURIComponent(next.trim())}`);
-      return;
-    }
     if (action === "profile") {
+      sessionStorage.setItem("tapster_prev", window.location.href);
       window.location.assign("profile.html");
       return;
     }
+    if (action === "scoreboard") {
+      sessionStorage.setItem("tapster_prev", window.location.href);
+      window.location.assign("scoreboard.html");
+      return;
+    }
     if (action === "rules") {
-      window.alert("Regler kommer snart.");
+      window.location.assign("rules.html");
       return;
     }
     if (action === "logout") {
@@ -1095,6 +1188,28 @@ djModal.addEventListener("click", (event) => {
 });
 requestForm.addEventListener("submit", addRequest);
 
+if (qrBtn) qrBtn.addEventListener("click", openQrModal);
+if (closeQr) closeQr.addEventListener("click", closeQrModal);
+if (qrModal) {
+  qrModal.addEventListener("click", (event) => {
+    if (event.target === qrModal) closeQrModal();
+  });
+}
+
+function applyBoostersVisibility() {
+  if (!paymentPanel) return;
+  const isVisible = sessionStorage.getItem(BOOSTERS_VIS_KEY) !== "false";
+  paymentPanel.classList.toggle("is-hidden", !isVisible && !isDj);
+  if (boostersToggle) boostersToggle.checked = isVisible;
+}
+
+if (boostersToggle) {
+  boostersToggle.addEventListener("change", () => {
+    sessionStorage.setItem(BOOSTERS_VIS_KEY, boostersToggle.checked ? "true" : "false");
+    applyBoostersVisibility();
+  });
+}
+
 djToggle.addEventListener("change", (event) => {
   if (event.target.checked) {
     const authed = sessionStorage.getItem(DJ_AUTH_KEY) === "true";
@@ -1133,10 +1248,8 @@ updateCreditsDisplay();
 updatePayPrices();
 
 initSupabase();
+sessionStorage.removeItem(DJ_AUTH_KEY);
 
-const djAuthed = sessionStorage.getItem(DJ_AUTH_KEY) === "true";
-if (djAuthed) {
-  setDjMode(true);
-}
+applyBoostersVisibility();
 
 renderLists();

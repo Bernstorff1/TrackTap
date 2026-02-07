@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tapster · Regler</title>
+    <link rel="stylesheet" href="styles.css?v=18" />
+  </head>
+  <body>
+    <div class="bg-glow glow-one" aria-hidden="true"></div>
+    <div class="bg-glow glow-two" aria-hidden="true"></div>
+    <div class="bg-glow glow-three" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img class="brand-logo" src="assets/TrackTap-logo.png" alt="Tapster logo" />
+        </div>
+        <div>
+          <div class="brand-name">Tapster</div>
+          <div class="brand-sub">Regler</div>
+        </div>
+      </div>
+      <div class="user-status">
+        <button id="menuBtnRules" class="btn ghost small" type="button">☰</button>
+        <button id="userAvatarBtnRules" class="avatar-btn is-hidden" type="button" aria-label="Bruger">
+          A
+        </button>
+        <div class="menu-panel is-hidden" id="userDropdownRules">
+          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
+          <button class="menu-item" type="button" data-action="profile">Se profil</button>
+          <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
+          <button class="menu-item" type="button" data-action="rules">Regler</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container profile-page">
+      <section class="card wide">
+        <h2>Hvordan fungerer playlister?</h2>
+        <p class="lead">
+          Tapster samler ønskesange i en fælles kø, hvor gæster stemmer og DJ’en styrer
+          afspilningen. Placeringen i køen bestemmes af score.
+        </p>
+
+        <div class="card">
+          <div class="playlist-name">1) Gæster tilføjer sange</div>
+          <p>
+            Gæster kan tilføje en sang til køen. Den nye sang starter nederst i køen og
+            får en score baseret på upvotes og downvotes.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="playlist-name">2) Stemmer bestemmer rækkefølgen</div>
+          <p>
+            Upvotes og downvotes påvirker scoren. Ved samme score bliver den sang, der først
+            nåede scoren, liggende øverst. Nye sange starter nederst.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="playlist-name">3) Boosts vs. organiske stemmer</div>
+          <p>
+            Boosts er købte stemmer. Organiske stemmer er normale upvotes. Scoreboard og
+            profiler viser dem separat, men begge tæller med i den samlede score.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="playlist-name">4) DJ‑valg</div>
+          <p>
+            DJ’en kan markere en sang som DJ‑valg. Den får en høj base‑score og ligger øverst,
+            men kan stadig stemmes op eller ned af gæster.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="playlist-name">5) Afspillet‑listen</div>
+          <p>
+            Når en sang afspilles, flyttes den til “Afspillet”. Den kan godt komme i kø igen,
+            men kun én gang ad gangen.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="rules.js?v=1"></script>
+  </body>
+</html>

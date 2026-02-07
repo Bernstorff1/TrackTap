@@ -27,6 +27,7 @@ create table if not exists playlists (
 create table if not exists requests (
   id text primary key,
   room_id text not null,
+  requester_id uuid references auth.users(id),
   track_title text,
   artist text,
   comment text,
@@ -37,6 +38,8 @@ create table if not exists requests (
   downvotes int default 0,
   dj_pinned boolean default false,
   paid_boosts int default 0,
+  paid_boosts_up int default 0,
+  paid_boosts_down int default 0,
   cover text,
   spotify_web_url text,
   spotify_app_url text
@@ -45,7 +48,7 @@ create table if not exists requests (
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
-  credits int default 0,
+  credits int default 10,
   updated_at timestamptz default now()
 );
 

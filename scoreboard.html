@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tapster · Scoreboard</title>
+    <link rel="stylesheet" href="styles.css?v=17" />
+  </head>
+  <body>
+    <div class="bg-glow glow-one" aria-hidden="true"></div>
+    <div class="bg-glow glow-two" aria-hidden="true"></div>
+    <div class="bg-glow glow-three" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img class="brand-logo" src="assets/TrackTap-logo.png" alt="Tapster logo" />
+        </div>
+        <div>
+          <div class="brand-name">Tapster</div>
+          <div class="brand-sub">Scoreboard</div>
+        </div>
+      </div>
+      <div class="user-status">
+        <button id="menuBtnScore" class="btn ghost small" type="button">☰</button>
+        <button id="userAvatarBtnScore" class="avatar-btn is-hidden" type="button" aria-label="Bruger">
+          A
+        </button>
+        <div class="menu-panel is-hidden" id="userDropdownScore">
+          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
+          <button class="menu-item" type="button" data-action="profile">Se profil</button>
+          <button class="menu-item" type="button" data-action="rules">Regler</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container profile-page">
+      <section class="card wide scoreboard-hero">
+        <div class="scoreboard-header">
+          <div>
+            <div class="eyebrow">Scoreboard</div>
+            <h2>Ugens topscore</h2>
+            <p class="lead">De stærkeste 7 dage – organisk og boosts.</p>
+          </div>
+          <div class="score-pill">Live</div>
+        </div>
+      </section>
+
+      <section class="card wide scoreboard-card">
+        <div class="scoreboard-section">
+          <h3>Top brugere (7 dage)</h3>
+          <p class="playlist-meta">Flest upvotes på sange brugeren har tilføjet.</p>
+        </div>
+        <div id="scoreboardList" class="playlist-list"></div>
+      </section>
+
+      <section class="card wide scoreboard-card">
+        <div class="scoreboard-section">
+          <h3>Top playlister (7 dage)</h3>
+          <p class="playlist-meta">Flest upvotes på playlistens sange.</p>
+        </div>
+        <div id="scoreboardPlaylists" class="playlist-list"></div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="scoreboard.js?v=2"></script>
+  </body>
+</html>

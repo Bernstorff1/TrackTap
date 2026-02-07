@@ -21,30 +21,33 @@
       <div class="role-toggle">
         <span>Gæst</span>
         <button id="brandEditToggle" class="brand-edit is-hidden" type="button">Rediger navn</button>
+        <button id="qrBtn" class="btn ghost small is-hidden" type="button">QR</button>
         <label class="switch">
           <input id="djMode" type="checkbox" />
           <span class="slider"></span>
         </label>
         <span>DJ</span>
       </div>
-      <button class="menu-btn" type="button" aria-label="Menu" id="menuBtn">☰</button>
-      <button class="btn ghost small login-btn is-hidden" type="button" id="loginBtn">Log ind</button>
-      <button class="avatar-btn is-hidden" type="button" aria-label="Profil" id="profileBtn">A</button>
-      <div class="menu-panel is-hidden" id="menuPanel">
-        <button class="menu-item" type="button" data-action="switch-bar">Skift bar</button>
-        <button class="menu-item" type="button" data-action="profile">Se profil</button>
-        <button class="menu-item" type="button" data-action="rules">Regler</button>
-        <button class="menu-item" type="button" data-action="back-home">Tilbage til forside</button>
+    <button class="menu-btn" type="button" aria-label="Menu" id="menuBtn">☰</button>
+    <button class="btn ghost small login-btn is-hidden" type="button" id="loginBtn">Log ind</button>
+    <button class="avatar-btn is-hidden" type="button" aria-label="Profil" id="profileBtn">A</button>
+    <div class="menu-panel is-hidden" id="menuPanel">
+      <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
+      <button class="menu-item" type="button" data-action="profile">Se profil</button>
+      <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
+      <button class="menu-item" type="button" data-action="rules">Regler</button>
         <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
-      </div>
+    </div>
     </header>
 
     <main class="app">
-      <section class="hero">
-        <h1>Choose and vote</h1>
-        <p>Arranged after score</p>
+      <section class="boosters-section">
         <div class="payment-panel collapsed" id="paymentPanel">
           <button id="paymentToggle" class="boosters-toggle" type="button">Boosters</button>
+          <label class="boosters-visibility is-hidden" id="boostersVisibility">
+            <span>Synlig</span>
+            <input id="boostersToggle" type="checkbox" />
+          </label>
           <div class="payment-body">
             <div class="payment-copy">
               <div class="payment-title">Køb ekstra stemmer</div>
@@ -56,7 +59,7 @@
                 <span>Vælg beløb</span>
                 <span id="amountValue">10 kr</span>
               </div>
-              <input id="amountRange" type="range" min="0" max="50" step="1" value="10" aria-label="Beløb i kroner" />
+              <input id="amountRange" type="range" min="1" max="50" step="1" value="10" aria-label="Beløb i kroner" />
             </div>
             <div class="payment-buttons">
               <button class="pay-btn pay-apple" data-pay="apple">
@@ -82,6 +85,9 @@
       <section class="lists">
         <div id="queuedList" class="list active" data-list="queued"></div>
         <div id="playedList" class="list" data-list="played"></div>
+        <div class="played-actions">
+          <button class="btn ghost spotify-btn" type="button">Tilføj playliste til min Spotify</button>
+        </div>
       </section>
     </main>
 
@@ -139,12 +145,25 @@
       </div>
     </div>
 
+    <div id="qrModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Del playlisten</h2>
+          <button id="closeQr" class="ghost">Luk</button>
+        </div>
+        <div class="qr-body">
+          <img id="qrImage" class="qr-image" alt="QR kode" />
+          <div class="qr-link" id="qrLink"></div>
+        </div>
+      </div>
+    </div>
+
     <footer class="footer">
       <div>TrackTap · Live beats · All rights reserved-ish</div>
       <button id="easterEggBtn" class="easter-btn" type="button">Find easter egg</button>
       <div id="easterEgg" class="easter-egg is-hidden">Simon, Vis os dine klunker!</div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="playlist.js?v=17"></script>
+    <script src="playlist.js?v=18"></script>
   </body>
 </html>

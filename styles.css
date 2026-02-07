@@ -23,6 +23,10 @@
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg);
+}
+
 body {
   margin: 0;
   font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
@@ -276,6 +280,14 @@ body.host-open .card-grid {
   margin-bottom: 20px;
 }
 
+.find-card {
+  margin-bottom: 16px;
+}
+
+#hostInline .card + .card {
+  margin-top: 16px;
+}
+
 .guest-auth {
   margin-top: 14px;
   padding-top: 12px;
@@ -338,6 +350,141 @@ body.host-open .card-grid {
 .playlist-meta {
   font-size: 12px;
   color: var(--muted);
+}
+
+.received-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.received-card {
+  background: linear-gradient(160deg, rgba(0, 229, 255, 0.08), rgba(255, 0, 212, 0.06));
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.received-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.received-tag {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.received-pill {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(255, 0, 212, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.scoreboard-hero {
+  background: linear-gradient(160deg, rgba(0, 229, 255, 0.1), rgba(255, 0, 212, 0.08));
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.scoreboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scoreboard-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+}
+
+.scoreboard-section {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.scoreboard-section h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.score-pill {
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.3), rgba(255, 0, 212, 0.3));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.received-stat {
+  background: rgba(7, 9, 14, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.received-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.received-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.received-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.received-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.received-bar-fill.organic {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.9), rgba(0, 180, 255, 0.9));
+}
+
+.received-bar-fill.boost {
+  background: linear-gradient(135deg, rgba(255, 0, 212, 0.9), rgba(255, 122, 200, 0.9));
+}
+
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.stat-dot.organic {
+  background: rgba(0, 229, 255, 0.9);
+}
+
+.stat-dot.boost {
+  background: rgba(255, 0, 212, 0.9);
 }
 
 .modal {

@@ -21,7 +21,19 @@
           <div class="brand-sub">Min profil</div>
         </div>
       </div>
-      <a class="btn ghost small" href="index.html">Tilbage</a>
+      <div class="user-status">
+        <button id="menuBtnProfile" class="btn ghost small" type="button">☰</button>
+        <button id="userAvatarBtnProfile" class="avatar-btn is-hidden" type="button" aria-label="Bruger">
+          A
+        </button>
+        <div class="menu-panel is-hidden" id="userDropdownProfile">
+          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
+          <button class="menu-item" type="button" data-action="profile">Se profil</button>
+          <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
+          <button class="menu-item" type="button" data-action="rules">Regler</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+        </div>
+      </div>
     </header>
 
     <main class="container profile-page">
@@ -32,6 +44,63 @@
           <div class="playlist-name">Kreditter</div>
           <div id="creditsTotal" class="code-value">0</div>
         </div>
+        <div class="card received-card">
+          <div class="playlist-name">Upvotes modtaget</div>
+
+          <div class="received-section">
+            <div class="received-tag">I alt</div>
+            <div class="received-pill">Total</div>
+          </div>
+          <div class="received-grid">
+            <div class="received-stat">
+              <div class="received-label">
+                <span class="stat-dot organic"></span>
+                <span>Organiske</span>
+              </div>
+              <div class="received-value" id="receivedTotalsAllOrganic">0</div>
+              <div class="received-bar">
+                <div class="received-bar-fill organic" id="receivedTotalsAllOrganicBar"></div>
+              </div>
+            </div>
+            <div class="received-stat">
+              <div class="received-label">
+                <span class="stat-dot boost"></span>
+                <span>Boosts</span>
+              </div>
+              <div class="received-value" id="receivedTotalsAllBoost">0</div>
+              <div class="received-bar">
+                <div class="received-bar-fill boost" id="receivedTotalsAllBoostBar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="received-section">
+            <div class="received-tag">Sidste 7 dage</div>
+            <div class="received-pill">Uge</div>
+          </div>
+          <div class="received-grid">
+            <div class="received-stat">
+              <div class="received-label">
+                <span class="stat-dot organic"></span>
+                <span>Organiske</span>
+              </div>
+              <div class="received-value" id="receivedTotalsWeekOrganic">0</div>
+              <div class="received-bar">
+                <div class="received-bar-fill organic" id="receivedTotalsWeekOrganicBar"></div>
+              </div>
+            </div>
+            <div class="received-stat">
+              <div class="received-label">
+                <span class="stat-dot boost"></span>
+                <span>Boosts</span>
+              </div>
+              <div class="received-value" id="receivedTotalsWeekBoost">0</div>
+              <div class="received-bar">
+                <div class="received-bar-fill boost" id="receivedTotalsWeekBoostBar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="card wide">
@@ -41,6 +110,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="profile.js?v=17"></script>
+    <script src="profile.js?v=18"></script>
   </body>
 </html>
