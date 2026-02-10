@@ -309,6 +309,47 @@ body.host-open .card-grid {
   flex-wrap: wrap;
 }
 
+.code-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 0;
+  display: grid;
+  gap: 6px;
+}
+
+.code-suggestions:empty {
+  display: none;
+}
+
+.code-suggestions li {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.code-suggestions li:hover {
+  border-color: rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.code-suggestions .code {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.code-suggestions .name {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
 .host-playlists {
   display: grid;
   gap: 12px;

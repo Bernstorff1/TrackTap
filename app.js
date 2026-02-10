@@ -14,6 +14,8 @@ const guestAuth = document.getElementById("guestAuth");
 const guestFormHost = document.getElementById("guestFormHost");
 const guestInputHost = document.getElementById("guestCodeHost");
 const guestHelperHost = document.getElementById("guestHelperHost");
+const guestSuggestions = document.getElementById("guestSuggestions");
+const guestSuggestionsHost = document.getElementById("guestSuggestionsHost");
 const hostFindClose = document.getElementById("hostFindClose");
 const hostInline = document.getElementById("hostInline");
 const hostInlineClose = document.getElementById("hostInlineClose");
@@ -84,6 +86,72 @@ function setHelperMessage(helperEl, message, show) {
   if (!helperEl) return;
   helperEl.textContent = message;
   toggleHelper(helperEl, show);
+}
+
+async function fetchCodeSuggestions(prefix) {
+  if (!supabaseClient) return [];
+  const query = normalizeCode(prefix);
+  if (!query) return [];
+  try {
+    const { data } = await supabaseClient
+      .from("playlists")
+      .select("code, playlist_name")
+      .ilike("code", `${query}%`)
+      .limit(5);
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+function renderSuggestions(listEl, items, onPick) {
+  if (!listEl) return;
+  if (!items.length) {
+    listEl.innerHTML = "";
+    return;
+  }
+  listEl.innerHTML = items
+    .map(
+      (item) => `
+        <li data-code="${item.code}">
+          <span class="code">${item.code}</span>
+          <span class="name">${item.playlist_name || "Playliste"}</span>
+        </li>
+      `
+    )
+    .join("");
+  listEl.querySelectorAll("li").forEach((row) => {
+    row.addEventListener("click", () => {
+      const code = row.dataset.code || "";
+      onPick(code);
+      listEl.innerHTML = "";
+    });
+  });
+}
+
+function attachCodeSuggestions(inputEl, listEl) {
+  if (!inputEl || !listEl) return;
+  let timer = null;
+  inputEl.addEventListener("input", () => {
+    const value = normalizeCode(inputEl.value);
+    inputEl.value = value;
+    clearTimeout(timer);
+    if (!value) {
+      listEl.innerHTML = "";
+      return;
+    }
+    timer = setTimeout(async () => {
+      const items = await fetchCodeSuggestions(value);
+      renderSuggestions(listEl, items, (code) => {
+        inputEl.value = code;
+      });
+    }, 200);
+  });
+  inputEl.addEventListener("blur", () => {
+    setTimeout(() => {
+      listEl.innerHTML = "";
+    }, 150);
+  });
 }
 
 function authRedirectUrl() {
@@ -578,6 +646,9 @@ if (hostInlineClose) {
     setGuestInlineVisible(true);
   });
 }
+
+attachCodeSuggestions(guestInput, guestSuggestions);
+attachCodeSuggestions(guestInputHost, guestSuggestionsHost);
 
 if (guestLoginBtn) {
   guestLoginBtn.addEventListener("click", () => openAuthModal("login"));
