@@ -21,6 +21,7 @@
 
 html,
 body {
+  background: linear-gradient(180deg, rgba(62, 20, 110, 0.95) 0%, rgba(15, 70, 120, 0.9) 100%);
   overflow-x: hidden;
 }
 
@@ -32,14 +33,6 @@ body {
   min-height: 100vh;
   padding: 24px 18px calc(90px + env(safe-area-inset-bottom));
   overflow-x: hidden;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  background: linear-gradient(180deg, rgba(62, 20, 110, 0.95) 0%, rgba(15, 70, 120, 0.9) 100%);
 }
 
 .bg-orb {
