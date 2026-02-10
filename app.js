@@ -18,7 +18,6 @@ const guestSuggestions = document.getElementById("guestSuggestions");
 const guestSuggestionsHost = document.getElementById("guestSuggestionsHost");
 const hostFindClose = document.getElementById("hostFindClose");
 const hostInline = document.getElementById("hostInline");
-const hostInlineClose = document.getElementById("hostInlineClose");
 
 const hostHelper = document.getElementById("hostHelper");
 const hostPlaylists = document.getElementById("hostPlaylists");
@@ -651,12 +650,6 @@ if (hostFindClose) {
   hostFindClose.addEventListener("click", () => {
     setGuestInlineVisible(true);
     setHostInlineVisible(false);
-  });
-}
-if (hostInlineClose) {
-  hostInlineClose.addEventListener("click", () => {
-    setHostInlineVisible(false);
-    setGuestInlineVisible(true);
   });
 }
 
