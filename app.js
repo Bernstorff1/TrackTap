@@ -16,7 +16,6 @@ const guestInputHost = document.getElementById("guestCodeHost");
 const guestHelperHost = document.getElementById("guestHelperHost");
 const guestSuggestions = document.getElementById("guestSuggestions");
 const guestSuggestionsHost = document.getElementById("guestSuggestionsHost");
-const hostFindClose = document.getElementById("hostFindClose");
 const hostInline = document.getElementById("hostInline");
 
 const hostHelper = document.getElementById("hostHelper");
@@ -696,12 +695,6 @@ hostSuccessBack.addEventListener("click", () => navigateTo("/"));
 if (guestInlineClose) {
   guestInlineClose.addEventListener("click", () => {
     setGuestInlineVisible(false);
-  });
-}
-if (hostFindClose) {
-  hostFindClose.addEventListener("click", () => {
-    setGuestInlineVisible(true);
-    setHostInlineVisible(false);
   });
 }
 
