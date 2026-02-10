@@ -143,13 +143,27 @@
     </div>
 
     <div id="qrModal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-card">
+      <div class="modal-card qr-card">
         <div class="modal-header">
           <h2>Del playlisten</h2>
           <button id="closeQr" class="ghost">Luk</button>
         </div>
-        <div class="qr-body">
-          <img id="qrImage" class="qr-image" alt="QR kode" />
+        <div class="qr-body qr-poster">
+          <div class="qr-brand">
+            <img class="qr-logo" src="assets/Tapsterlogonyt.png" alt="Tapster logo" />
+            <div>
+              <div class="qr-title">Tapster</div>
+              <div class="qr-sub">Scan og ønsk musik live</div>
+            </div>
+          </div>
+          <div class="qr-playlist">
+            <div class="qr-label">Playlisten</div>
+            <div id="qrPlaylistName" class="qr-name">—</div>
+          </div>
+          <div class="qr-code-wrap">
+            <img id="qrImage" class="qr-image" alt="QR kode" />
+          </div>
+          <div class="qr-cta">Åbn og stem på næste nummer</div>
           <div class="qr-link" id="qrLink"></div>
         </div>
       </div>

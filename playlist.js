@@ -48,6 +48,7 @@ const qrModal = document.getElementById("qrModal");
 const closeQr = document.getElementById("closeQr");
 const qrImage = document.getElementById("qrImage");
 const qrLink = document.getElementById("qrLink");
+const qrPlaylistName = document.getElementById("qrPlaylistName");
 const infoModal = document.getElementById("infoModal");
 const infoTitle = document.getElementById("infoTitle");
 const infoMessage = document.getElementById("infoMessage");
@@ -495,10 +496,13 @@ function closeDjModalPanel() {
 }
 
 function buildPlaylistUrl() {
+  const origin = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "https://tapsterbox.dk"
+    : window.location.origin;
   const url = new URL(window.location.href);
   url.searchParams.set("code", ROOM_ID || "");
   url.hash = "";
-  return url.toString();
+  return `${origin}${url.pathname}${url.search}`;
 }
 
 function openQrModal() {
@@ -507,6 +511,9 @@ function openQrModal() {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}`;
   qrImage.src = qrUrl;
   qrLink.textContent = url;
+  if (qrPlaylistName) {
+    qrPlaylistName.textContent = brandNameText?.textContent?.trim() || ROOM_ID || "Playliste";
+  }
   qrModal.classList.remove("hidden");
 }
 

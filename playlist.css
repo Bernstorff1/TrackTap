@@ -981,6 +981,79 @@ button.ghost {
   margin-top: 12px;
 }
 
+.qr-card {
+  background: linear-gradient(160deg, #171824, #10121b);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.qr-poster {
+  text-align: left;
+  justify-items: stretch;
+  gap: 18px;
+}
+
+.qr-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qr-logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.qr-title {
+  font-family: "Fraunces", serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.qr-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.qr-playlist {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.qr-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.qr-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.qr-code-wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.qr-cta {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(255, 0, 212, 0.18), rgba(0, 229, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
 .qr-image {
   width: min(70vw, 280px);
   height: auto;
