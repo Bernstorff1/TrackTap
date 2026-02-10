@@ -250,6 +250,7 @@ function updateUserStatus(user) {
   if (!user) {
     loginBtn.classList.remove("is-hidden");
     userMenu.classList.add("is-hidden");
+    if (guestInlineClose) guestInlineClose.classList.remove("is-hidden");
     if (guestAuth) guestAuth.classList.remove("is-hidden");
     return;
   }
@@ -258,6 +259,7 @@ function updateUserStatus(user) {
   userAvatarBtn.textContent = initial;
   loginBtn.classList.add("is-hidden");
   userMenu.classList.remove("is-hidden");
+  if (guestInlineClose) guestInlineClose.classList.add("is-hidden");
   if (guestAuth) guestAuth.classList.add("is-hidden");
 }
 
