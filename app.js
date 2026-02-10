@@ -71,6 +71,11 @@ const confirmOk = document.getElementById("confirmOk");
 const confirmCancel = document.getElementById("confirmCancel");
 const closeConfirm = document.getElementById("closeConfirm");
 let confirmResolver = null;
+const infoModal = document.getElementById("infoModal");
+const infoTitle = document.getElementById("infoTitle");
+const infoMessage = document.getElementById("infoMessage");
+const infoOk = document.getElementById("infoOk");
+const closeInfo = document.getElementById("closeInfo");
 
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
@@ -270,6 +275,20 @@ function closeConfirmModal(result) {
     confirmResolver(result);
     confirmResolver = null;
   }
+}
+
+function openInfo(message, title = "Besked") {
+  if (!infoModal || !infoMessage || !infoTitle) return;
+  infoTitle.textContent = title;
+  infoMessage.textContent = message;
+  infoModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeInfoModal() {
+  if (!infoModal) return;
+  infoModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 }
 
 function updateUserStatus(user) {
@@ -584,7 +603,11 @@ async function deletePlaylist(code, name) {
   if (!supabaseClient) return;
   const confirmed = await openConfirm(`Er du sikker på du vil slette ${name}?`);
   if (!confirmed) return;
-  await supabaseClient.from("playlists").delete().eq("code", code);
+  const { error } = await supabaseClient.from("playlists").delete().eq("code", code);
+  if (error) {
+    openInfo("Kunne ikke slette playlisten. Prøv igen.");
+    return;
+  }
   renderMyPlaylists();
 }
 
@@ -625,6 +648,7 @@ createForm.addEventListener("submit", async (event) => {
           ? "Koden findes allerede. Vælg en anden."
           : `Kunne ikke oprette playliste. ${error?.message || "Prøv igen."}`;
     setHelperMessage(createHelper, message.trim(), true);
+    openInfo(message.trim());
   } finally {
     setLoading(createBtn, false, "Opretter...");
   }
@@ -721,6 +745,14 @@ if (closeConfirm) closeConfirm.addEventListener("click", () => closeConfirmModal
 if (confirmModal) {
   confirmModal.addEventListener("click", (event) => {
     if (event.target === confirmModal) closeConfirmModal(false);
+  });
+}
+
+if (infoOk) infoOk.addEventListener("click", closeInfoModal);
+if (closeInfo) closeInfo.addEventListener("click", closeInfoModal);
+if (infoModal) {
+  infoModal.addEventListener("click", (event) => {
+    if (event.target === infoModal) closeInfoModal();
   });
 }
 
