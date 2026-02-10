@@ -18,6 +18,7 @@ let supabaseClient;
 let useRemote = true;
 let remotePoll;
 const requestForm = document.getElementById("requestForm");
+const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
 const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
@@ -944,6 +945,7 @@ function closeModalPanel() {
   requestForm.reset();
   selectedTrack = null;
   searchResults.innerHTML = "";
+  if (requestHelper) requestHelper.classList.add("is-hidden");
 }
 
 function addRequest(event) {
@@ -951,7 +953,13 @@ function addRequest(event) {
   const title = document.getElementById("trackTitle").value.trim();
   const artist = trackArtistInput ? trackArtistInput.value.trim() : "";
   const comment = document.getElementById("trackComment").value.trim();
-  if (!title) return;
+  if (!title) {
+    if (requestHelper) {
+      requestHelper.textContent = "Skriv et tracknavn først.";
+      requestHelper.classList.remove("is-hidden");
+    }
+    return;
+  }
 
   const track = selectedTrack || { title, artist };
   const spotifyLinks = spotifySearchLinks(track);
@@ -962,8 +970,13 @@ function addRequest(event) {
       `${item.title}::${item.artist || ""}`.toLowerCase() === key
   );
   if (alreadyQueued) {
+    if (requestHelper) {
+      requestHelper.textContent = "Sangen ligger allerede i kø.";
+      requestHelper.classList.remove("is-hidden");
+    }
     return;
   }
+  if (requestHelper) requestHelper.classList.add("is-hidden");
 
   const djPinned = isDj;
   requests.push({
