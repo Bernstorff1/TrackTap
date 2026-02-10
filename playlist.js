@@ -1,5 +1,6 @@
 const queuedList = document.getElementById("queuedList");
 const playedList = document.getElementById("playedList");
+const playedActions = document.getElementById("playedActions");
 const queuedCount = document.getElementById("queuedCount");
 const playedCount = document.getElementById("playedCount");
 const tabs = document.querySelectorAll(".tab");
@@ -969,11 +970,18 @@ function switchTab(tab) {
   document.querySelectorAll(".list").forEach((list) => {
     list.classList.toggle("active", list.dataset.list === tab);
   });
+  if (playedActions) {
+    playedActions.classList.toggle("hidden", tab !== "played");
+  }
 }
 
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 });
+
+if (playedActions) {
+  playedActions.classList.toggle("hidden", !document.querySelector('.tab[data-tab="played"]')?.classList.contains("active"));
+}
 
 addBtn.addEventListener("click", openModal);
 closeModal.addEventListener("click", closeModalPanel);

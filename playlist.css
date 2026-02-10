@@ -19,6 +19,11 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  background: #0f0f14;
+}
+
 body {
   margin: 0;
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -658,6 +663,10 @@ body {
   justify-content: center;
 }
 
+.played-actions.hidden {
+  display: none;
+}
+
 .spotify-btn {
   min-width: 240px;
   border-color: rgba(0, 229, 255, 0.3);
@@ -1108,26 +1117,13 @@ textarea {
 
 @media (max-width: 520px) {
   .topbar {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "brand menu"
-      "role role";
+    display: flex;
+    align-items: center;
     gap: 10px;
   }
 
-  .brand {
-    grid-area: brand;
-  }
-
-  .menu-btn {
-    grid-area: menu;
-    justify-self: end;
-  }
-
   .role-toggle {
-    grid-area: role;
-    width: 100%;
-    justify-content: center;
+    margin-left: auto;
   }
 
   .hero h1 {
