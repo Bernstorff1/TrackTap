@@ -539,13 +539,24 @@ async function renderMyPlaylists() {
   hostPlaylists.innerHTML = rows
     .map(
       (row) => `
-        <a class="playlist-item clickable" href="playlist.html?code=${encodeURIComponent(row.code)}">
-          <div class="playlist-name">${row.playlist_name || "Uden navn"}</div>
-          <div class="playlist-meta">${row.code}</div>
-        </a>
+        <div class="playlist-item clickable" data-code="${row.code}" data-name="${row.playlist_name || "Uden navn"}">
+          <a class="playlist-link" href="playlist.html?code=${encodeURIComponent(row.code)}">
+            <div class="playlist-name">${row.playlist_name || "Uden navn"}</div>
+            <div class="playlist-meta">${row.code}</div>
+          </a>
+          <button class="btn ghost small playlist-delete" type="button">Slet</button>
+        </div>
       `
     )
     .join("");
+}
+
+async function deletePlaylist(code, name) {
+  if (!supabaseClient) return;
+  const confirmed = window.confirm(`Er du sikker på du vil slette ${name}?`);
+  if (!confirmed) return;
+  await supabaseClient.from("playlists").delete().eq("code", code);
+  renderMyPlaylists();
 }
 
 createForm.addEventListener("submit", async (event) => {
@@ -644,6 +655,22 @@ if (hostInlineClose) {
   hostInlineClose.addEventListener("click", () => {
     setHostInlineVisible(false);
     setGuestInlineVisible(true);
+  });
+}
+
+if (hostPlaylists) {
+  hostPlaylists.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const deleteBtn = target.closest(".playlist-delete");
+    if (!deleteBtn) return;
+    const item = target.closest(".playlist-item");
+    if (!item) return;
+    const code = item.getAttribute("data-code");
+    const name = item.getAttribute("data-name") || "playliste";
+    if (!code) return;
+    event.preventDefault();
+    deletePlaylist(code, name);
   });
 }
 

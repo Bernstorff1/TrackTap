@@ -365,8 +365,24 @@ body.host-open .card-grid {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 14px;
   padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.playlist-link {
+  color: inherit;
+  text-decoration: none;
   display: grid;
   gap: 6px;
+  flex: 1;
+}
+
+.playlist-delete {
+  padding: 8px 14px;
+  border-color: rgba(255, 95, 109, 0.4);
+  color: #ffd6dc;
 }
 
 .playlist-item.clickable {
