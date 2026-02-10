@@ -156,6 +156,7 @@ function setGuestInlineVisible(isVisible) {
 function setHostInlineVisible(isVisible) {
   if (!hostInline) return;
   hostInline.classList.toggle("active", isVisible);
+  if (!isVisible) hostInline.classList.remove("expanded");
   document.body.classList.toggle("host-open", isVisible);
 }
 
@@ -504,6 +505,7 @@ createForm.addEventListener("submit", async (event) => {
     guestResultCode.textContent = result.guestCode;
     hostResultPassword.textContent = result.hostPassword;
     createSuccess.classList.remove("hidden");
+    if (hostInline) hostInline.classList.add("expanded");
     createForm.reset();
     localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPassword);
     renderMyPlaylists();
@@ -529,6 +531,7 @@ tabs.forEach((tab) => {
       createForm.reset();
       setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, false);
       if (createSuccess) createSuccess.classList.add("hidden");
+      if (hostInline) hostInline.classList.remove("expanded");
     }
   });
 });

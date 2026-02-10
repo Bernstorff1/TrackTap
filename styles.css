@@ -273,8 +273,13 @@ body.host-open .card-grid {
 .guest-inline.active {
   opacity: 1;
   transform: translateY(0);
-  max-height: 1200px;
+  max-height: 2000px;
   margin-bottom: 20px;
+}
+
+.guest-inline.expanded {
+  max-height: none;
+  overflow: visible;
 }
 
 .find-card {
