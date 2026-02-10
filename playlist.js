@@ -48,6 +48,11 @@ const qrModal = document.getElementById("qrModal");
 const closeQr = document.getElementById("closeQr");
 const qrImage = document.getElementById("qrImage");
 const qrLink = document.getElementById("qrLink");
+const infoModal = document.getElementById("infoModal");
+const infoTitle = document.getElementById("infoTitle");
+const infoMessage = document.getElementById("infoMessage");
+const closeInfo = document.getElementById("closeInfo");
+const infoOk = document.getElementById("infoOk");
 const boostersVisibility = document.getElementById("boostersVisibility");
 const boostersToggle = document.getElementById("boostersToggle");
 
@@ -948,6 +953,18 @@ function closeModalPanel() {
   if (requestHelper) requestHelper.classList.add("is-hidden");
 }
 
+function showInfo(message, title = "Besked") {
+  if (!infoModal || !infoMessage || !infoTitle) return;
+  infoTitle.textContent = title;
+  infoMessage.textContent = message;
+  infoModal.classList.remove("hidden");
+}
+
+function closeInfoModal() {
+  if (!infoModal) return;
+  infoModal.classList.add("hidden");
+}
+
 function addRequest(event) {
   event.preventDefault();
   const title = document.getElementById("trackTitle").value.trim();
@@ -970,10 +987,7 @@ function addRequest(event) {
       `${item.title}::${item.artist || ""}`.toLowerCase() === key
   );
   if (alreadyQueued) {
-    if (requestHelper) {
-      requestHelper.textContent = "Sangen ligger allerede i kø.";
-      requestHelper.classList.remove("is-hidden");
-    }
+    showInfo("Sangen ligger allerede i kø.");
     return;
   }
   if (requestHelper) requestHelper.classList.add("is-hidden");
@@ -1242,6 +1256,14 @@ if (closeQr) closeQr.addEventListener("click", closeQrModal);
 if (qrModal) {
   qrModal.addEventListener("click", (event) => {
     if (event.target === qrModal) closeQrModal();
+  });
+}
+
+if (infoOk) infoOk.addEventListener("click", closeInfoModal);
+if (closeInfo) closeInfo.addEventListener("click", closeInfoModal);
+if (infoModal) {
+  infoModal.addEventListener("click", (event) => {
+    if (event.target === infoModal) closeInfoModal();
   });
 }
 
