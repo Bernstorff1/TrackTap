@@ -21,7 +21,7 @@
 
 html,
 body {
-  background: linear-gradient(180deg, rgba(62, 20, 110, 0.95) 0%, rgba(15, 70, 120, 0.9) 100%);
+  background: var(--bg);
   overflow-x: hidden;
 }
 
@@ -33,6 +33,29 @@ body {
   min-height: 100vh;
   padding: 24px 18px calc(90px + env(safe-area-inset-bottom));
   overflow-x: hidden;
+  position: relative;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+body::before {
+  top: 0;
+  height: 220px;
+  background: linear-gradient(180deg, rgba(88, 32, 150, 0.55) 0%, rgba(88, 32, 150, 0) 100%);
+}
+
+body::after {
+  bottom: 0;
+  height: 240px;
+  background: linear-gradient(0deg, rgba(22, 96, 160, 0.55) 0%, rgba(22, 96, 160, 0) 100%);
 }
 
 .bg-orb {
