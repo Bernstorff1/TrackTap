@@ -570,6 +570,10 @@ body.host-open .card-grid {
   position: relative;
 }
 
+.confirm-card {
+  width: min(420px, 100%);
+}
+
 .modal-header {
   display: flex;
   align-items: center;

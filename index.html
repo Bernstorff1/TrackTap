@@ -201,6 +201,20 @@
       </div>
     </div>
 
+    <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal-card confirm-card">
+        <div class="modal-header">
+          <h2 id="confirmTitle">Bekræft</h2>
+          <button id="closeConfirm" class="ghost">Luk</button>
+        </div>
+        <p id="confirmMessage" class="helper"></p>
+        <div class="actions">
+          <button id="confirmCancel" type="button" class="ghost">Annuller</button>
+          <button id="confirmOk" type="button" class="primary">Ja</button>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js?v=19"></script>
   </body>

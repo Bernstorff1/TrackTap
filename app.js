@@ -64,6 +64,13 @@ const loginBtn = document.getElementById("loginBtn");
 const userMenu = document.getElementById("userMenu");
 const userAvatarBtn = document.getElementById("userAvatarBtn");
 const userDropdown = document.getElementById("userDropdown");
+const confirmModal = document.getElementById("confirmModal");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmMessage = document.getElementById("confirmMessage");
+const confirmOk = document.getElementById("confirmOk");
+const confirmCancel = document.getElementById("confirmCancel");
+const closeConfirm = document.getElementById("closeConfirm");
+let confirmResolver = null;
 
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
@@ -242,6 +249,27 @@ function closeAuthModal() {
   if (!authModal) return;
   authModal.classList.add("hidden");
   document.body.classList.remove("modal-open");
+}
+
+function openConfirm(message, title = "Bekræft") {
+  if (!confirmModal || !confirmMessage || !confirmTitle) return Promise.resolve(false);
+  confirmTitle.textContent = title;
+  confirmMessage.textContent = message;
+  confirmModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+  });
+}
+
+function closeConfirmModal(result) {
+  if (!confirmModal) return;
+  confirmModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  if (confirmResolver) {
+    confirmResolver(result);
+    confirmResolver = null;
+  }
 }
 
 function updateUserStatus(user) {
@@ -554,7 +582,7 @@ async function renderMyPlaylists() {
 
 async function deletePlaylist(code, name) {
   if (!supabaseClient) return;
-  const confirmed = window.confirm(`Er du sikker på du vil slette ${name}?`);
+  const confirmed = await openConfirm(`Er du sikker på du vil slette ${name}?`);
   if (!confirmed) return;
   await supabaseClient.from("playlists").delete().eq("code", code);
   renderMyPlaylists();
@@ -684,6 +712,15 @@ if (closeAuth) {
 if (authModal) {
   authModal.addEventListener("click", (event) => {
     if (event.target === authModal) closeAuthModal();
+  });
+}
+
+if (confirmOk) confirmOk.addEventListener("click", () => closeConfirmModal(true));
+if (confirmCancel) confirmCancel.addEventListener("click", () => closeConfirmModal(false));
+if (closeConfirm) closeConfirm.addEventListener("click", () => closeConfirmModal(false));
+if (confirmModal) {
+  confirmModal.addEventListener("click", (event) => {
+    if (event.target === confirmModal) closeConfirmModal(false);
   });
 }
 
