@@ -169,7 +169,7 @@ async function loadScoreboard() {
     .slice(0, 5)
     .map(
       (item, index) => `
-        <div class="playlist-item clickable">
+        <div class="playlist-item clickable" data-code="${item.id}">
           <div class="playlist-name">${index + 1}. ${playlistNameMap.get(item.id) || item.id}</div>
           <div class="playlist-meta">
             Upvotes: ${item.total} · Organiske: ${item.organic} · Boosts: ${item.boosted} · Sange: ${item.songs}
@@ -178,6 +178,14 @@ async function loadScoreboard() {
       `
     )
     .join("");
+
+  scoreboardPlaylists.querySelectorAll(".playlist-item[data-code]").forEach((item) => {
+    item.addEventListener("click", () => {
+      const code = item.getAttribute("data-code");
+      if (!code) return;
+      window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
+    });
+  });
 }
 
 loadScoreboard();
