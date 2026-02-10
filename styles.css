@@ -24,13 +24,15 @@
 }
 
 html {
-  background: var(--bg);
+  background: linear-gradient(180deg, rgba(35, 10, 61, 1) 0%, rgba(8, 23, 61, 1) 100%);
 }
 
 body {
   margin: 0;
   font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
-  background: linear-gradient(180deg, rgba(35, 10, 61, 1) 0%, rgba(8, 23, 61, 1) 100%);
+  background: radial-gradient(circle at top left, rgba(0, 229, 255, 0.08), transparent 45%),
+    radial-gradient(circle at bottom right, rgba(255, 0, 212, 0.08), transparent 45%),
+    var(--bg);
   color: var(--ink);
   min-height: 100vh;
   position: relative;

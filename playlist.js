@@ -61,6 +61,7 @@ let barHostPassword = "";
 let currentUser = null;
 const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
+const requesterNames = new Map();
 
 const defaultRequests = [
   {
@@ -301,6 +302,7 @@ async function fetchRequestsRemote() {
   } else {
     requests = data.map(mapRowToRequest);
   }
+  await hydrateRequesters();
   ensureSpotifyLinks();
   renderLists();
 }
@@ -320,6 +322,9 @@ function applyRealtimeChange(payload) {
     requests[idx] = next;
   } else {
     requests.push(next);
+  }
+  if (next.requesterId && !requesterNames.has(next.requesterId)) {
+    hydrateRequesters([next.requesterId]);
   }
   ensureSpotifyLinks();
   renderLists();
@@ -402,6 +407,23 @@ function ensureSpotifyLinks() {
       spotifyWebUrl: item.spotifyWebUrl || links.web,
       spotifyAppUrl: item.spotifyAppUrl || links.app,
     };
+  });
+}
+
+async function hydrateRequesters(ids) {
+  if (!supabaseClient) return;
+  const uniqueIds = ids
+    ? Array.from(new Set(ids)).filter((id) => id && !requesterNames.has(id))
+    : Array.from(new Set(requests.map((r) => r.requesterId).filter(Boolean))).filter(
+        (id) => !requesterNames.has(id)
+      );
+  if (!uniqueIds.length) return;
+  const { data } = await supabaseClient
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", uniqueIds);
+  (data || []).forEach((row) => {
+    requesterNames.set(row.id, row.display_name || "Bruger");
   });
 }
 
@@ -716,6 +738,7 @@ function renderCard(item) {
     ? `∞${item.upvotes - item.downvotes === 0 ? "" : item.upvotes - item.downvotes > 0 ? ` +${item.upvotes - item.downvotes}` : ` ${item.upvotes - item.downvotes}`}`
     : scoreOf(item);
   const upLabel = item.upvotes;
+  const requesterLabel = item.requesterId ? requesterNames.get(item.requesterId) : "";
   return `
     <article class="card" data-id="${item.id}">
       <div class="card-main">
@@ -736,6 +759,7 @@ function renderCard(item) {
           <span class="score">${scoreLabel}</span>
           <span>${formatTimeSince(item.createdAt)}</span>
           <span>Up: ${upLabel} · Down: ${item.downvotes}</span>
+          ${requesterLabel ? `<span class="requester">Ønsket af ${requesterLabel}</span>` : ""}
           ${item.djPinned ? `<span class="badge dj">DJ</span>` : ""}
         </div>
         ${

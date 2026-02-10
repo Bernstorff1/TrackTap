@@ -22,13 +22,14 @@
 html,
 body {
   background: linear-gradient(180deg, rgba(35, 10, 61, 1) 0%, rgba(8, 23, 61, 1) 100%);
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
   font-family: "Space Grotesk", system-ui, sans-serif;
   color: var(--ink);
-  background: linear-gradient(180deg, rgba(35, 10, 61, 1) 0%, rgba(8, 23, 61, 1) 100%);
+  background: radial-gradient(circle at top, #202438 0%, #0f0f14 55%);
   min-height: 100vh;
   padding: 24px 18px calc(90px + env(safe-area-inset-bottom));
   overflow-x: hidden;
@@ -150,6 +151,8 @@ body {
   color: var(--muted);
   justify-self: center;
   white-space: nowrap;
+  max-width: 180px;
+  justify-content: flex-end;
 }
 
 .menu-btn {
@@ -761,6 +764,11 @@ body {
   color: var(--muted);
   font-size: 12px;
   margin-top: 10px;
+}
+
+.meta .requester {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .score {
