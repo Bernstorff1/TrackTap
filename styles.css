@@ -23,10 +23,6 @@
   box-sizing: border-box;
 }
 
-html {
-  background: linear-gradient(180deg, rgba(35, 10, 61, 1) 0%, rgba(8, 23, 61, 1) 100%);
-}
-
 body {
   margin: 0;
   font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
@@ -38,6 +34,7 @@ body {
   position: relative;
   overflow-x: hidden;
 }
+
 
 .is-hidden {
   display: none !important;
