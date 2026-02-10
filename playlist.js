@@ -704,7 +704,9 @@ function renderSearchResults(items) {
         cover: picked.album?.cover_small || "",
       };
       document.getElementById("trackTitle").value = selectedTrack.title;
-      document.getElementById("trackArtist").value = selectedTrack.artist;
+      if (trackArtistInput) {
+        trackArtistInput.value = selectedTrack.artist;
+      }
       searchResults.innerHTML = "";
     });
   });
@@ -947,7 +949,7 @@ function closeModalPanel() {
 function addRequest(event) {
   event.preventDefault();
   const title = document.getElementById("trackTitle").value.trim();
-  const artist = document.getElementById("trackArtist").value.trim();
+  const artist = trackArtistInput ? trackArtistInput.value.trim() : "";
   const comment = document.getElementById("trackComment").value.trim();
   if (!title) return;
 
@@ -1162,9 +1164,11 @@ trackTitleInput.addEventListener("input", () => {
   }, 250);
 });
 
-trackArtistInput.addEventListener("input", () => {
-  if (selectedTrack) selectedTrack = null;
-});
+if (trackArtistInput) {
+  trackArtistInput.addEventListener("input", () => {
+    if (selectedTrack) selectedTrack = null;
+  });
+}
 
 brandEditToggle.addEventListener("click", () => {
   if (!isDj) return;
