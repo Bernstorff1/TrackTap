@@ -176,6 +176,7 @@ body::after {
   white-space: nowrap;
   max-width: 180px;
   justify-content: flex-end;
+  position: relative;
 }
 
 .menu-btn {

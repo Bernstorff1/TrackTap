@@ -20,14 +20,18 @@
         </div>
       </div>
       <div class="role-toggle">
-        <button id="brandEditToggle" class="brand-edit is-hidden" type="button">Rediger navn</button>
-        <button id="qrBtn" class="btn ghost small is-hidden" type="button">QR</button>
         <label class="switch">
           <input id="djMode" type="checkbox" />
           <span class="slider"></span>
         </label>
         <span>DJ</span>
       </div>
+    <button class="avatar-btn is-hidden" type="button" aria-label="DJ" id="djMenuBtn">DJ</button>
+    <div class="menu-panel is-hidden" id="djMenuPanel">
+      <button class="menu-item" type="button" data-action="qr">QR-kode</button>
+      <button class="menu-item" type="button" data-action="edit-name">Rediger navn</button>
+      <button class="menu-item danger" type="button" data-action="dj-off">DJ mode off</button>
+    </div>
     <button class="menu-btn" type="button" aria-label="Menu" id="menuBtn">☰</button>
     <button class="btn ghost small login-btn is-hidden" type="button" id="loginBtn">Log ind</button>
     <button class="avatar-btn is-hidden" type="button" aria-label="Profil" id="profileBtn">A</button>

@@ -22,7 +22,7 @@ const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
 const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
-const brandEditToggle = document.getElementById("brandEditToggle");
+const roleToggle = document.querySelector(".role-toggle");
 const brandMark = document.getElementById("brandMark");
 const roomNameEl = document.getElementById("roomName");
 const creditCount = document.getElementById("creditCount");
@@ -43,7 +43,8 @@ const menuBtn = document.getElementById("menuBtn");
 const loginBtn = document.getElementById("loginBtn");
 const profileBtn = document.getElementById("profileBtn");
 const menuPanel = document.getElementById("menuPanel");
-const qrBtn = document.getElementById("qrBtn");
+const djMenuBtn = document.getElementById("djMenuBtn");
+const djMenuPanel = document.getElementById("djMenuPanel");
 const qrModal = document.getElementById("qrModal");
 const closeQr = document.getElementById("closeQr");
 const qrImage = document.getElementById("qrImage");
@@ -525,7 +526,8 @@ function closeQrModal() {
 function setDjMode(enabled) {
   isDj = enabled;
   djToggle.checked = enabled;
-  brandEditToggle.classList.toggle("is-hidden", !enabled);
+  if (djMenuBtn) djMenuBtn.classList.toggle("is-hidden", !enabled);
+  if (roleToggle) roleToggle.classList.toggle("is-hidden", enabled);
   if (paymentToggle && paymentPanel) {
     paymentToggle.disabled = enabled;
     if (enabled) {
@@ -534,9 +536,6 @@ function setDjMode(enabled) {
     } else {
       paymentPanel.classList.remove("dj-mode");
     }
-  }
-  if (qrBtn) {
-    qrBtn.classList.toggle("is-hidden", !enabled);
   }
   if (boostersVisibility) {
     boostersVisibility.classList.toggle("is-hidden", !enabled);
@@ -1170,6 +1169,31 @@ if (menuPanel) {
   });
 }
 
+if (djMenuPanel) {
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if ((djMenuBtn && djMenuBtn.contains(target)) || djMenuPanel.contains(target)) return;
+    closeDjMenu();
+  });
+
+  djMenuPanel.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const action = target.getAttribute("data-action");
+    if (!action) return;
+    if (action === "qr") {
+      openQrModal();
+    } else if (action === "edit-name") {
+      enableBrandEdit();
+    } else if (action === "dj-off") {
+      sessionStorage.removeItem(DJ_AUTH_KEY);
+      setDjMode(false);
+    }
+    closeDjMenu();
+  });
+}
+
 
 easterEggBtn.addEventListener("click", () => {
   easterEgg.classList.toggle("is-hidden");
@@ -1204,10 +1228,15 @@ if (trackArtistInput) {
   });
 }
 
-brandEditToggle.addEventListener("click", () => {
-  if (!isDj) return;
-  enableBrandEdit();
-});
+function toggleDjMenu() {
+  if (!djMenuPanel) return;
+  djMenuPanel.classList.toggle("is-hidden");
+}
+
+function closeDjMenu() {
+  if (!djMenuPanel) return;
+  djMenuPanel.classList.add("is-hidden");
+}
 
 brandNameText.addEventListener("dblclick", () => {
   if (!isDj) return;
@@ -1258,7 +1287,7 @@ djModal.addEventListener("click", (event) => {
 });
 requestForm.addEventListener("submit", addRequest);
 
-if (qrBtn) qrBtn.addEventListener("click", openQrModal);
+if (djMenuBtn) djMenuBtn.addEventListener("click", toggleDjMenu);
 if (closeQr) closeQr.addEventListener("click", closeQrModal);
 if (qrModal) {
   qrModal.addEventListener("click", (event) => {
