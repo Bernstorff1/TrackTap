@@ -1361,8 +1361,20 @@ if (infoModal) {
 
 async function startSpotifyConnect() {
   if (!supabaseClient) return;
-  const { data } = await supabaseClient.auth.getSession();
-  const session = data?.session;
+  let session = null;
+  try {
+    let { data } = await supabaseClient.auth.getSession();
+    session = data?.session || null;
+    if (!session) {
+      const refreshed = await supabaseClient.auth.refreshSession();
+      session = refreshed?.data?.session || null;
+    } else {
+      const refreshed = await supabaseClient.auth.refreshSession();
+      session = refreshed?.data?.session || session;
+    }
+  } catch {
+    session = null;
+  }
   if (!session) {
     const next = encodeURIComponent(window.location.href);
     window.location.assign(`index.html?login=1&next=${next}`);
