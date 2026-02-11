@@ -29,6 +29,9 @@
     <button class="qr-btn" type="button" aria-label="QR" id="qrBtnPublic">QR</button>
     <button class="avatar-btn is-hidden" type="button" aria-label="DJ" id="djMenuBtn">DJ</button>
     <div class="menu-panel is-hidden" id="djMenuPanel">
+      <button class="menu-item" type="button" data-action="spotify-connect" id="spotifyConnectBtn">
+        Connect til Spotify
+      </button>
       <button class="menu-item" type="button" data-action="qr">QR-kode</button>
       <button class="menu-item" type="button" data-action="edit-name">Rediger navn</button>
       <button class="menu-item danger" type="button" data-action="dj-off">DJ mode off</button>
@@ -110,7 +113,7 @@
             <input id="trackTitle" type="text" required placeholder="Fx 'Superstition'" />
           </label>
           <div class="autocomplete">
-            <div class="helper">Søg i Deezer og vælg track</div>
+            <div class="helper">Søg i Spotify og vælg track</div>
             <ul id="searchResults" class="search-results" aria-live="polite"></ul>
           </div>
           <div id="requestHelper" class="helper is-hidden"></div>

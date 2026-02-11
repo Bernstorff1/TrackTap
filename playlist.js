@@ -56,6 +56,8 @@ const infoTitle = document.getElementById("infoTitle");
 const infoMessage = document.getElementById("infoMessage");
 const closeInfo = document.getElementById("closeInfo");
 const infoOk = document.getElementById("infoOk");
+const spotifyPlaylistBtn = document.querySelector(".spotify-btn");
+const spotifyConnectBtn = document.getElementById("spotifyConnectBtn");
 const boostersVisibility = document.getElementById("boostersVisibility");
 const boostersToggle = document.getElementById("boostersToggle");
 
@@ -68,6 +70,7 @@ let voteCredits = 0;
 let selectedAmount = 10;
 let barHostPassword = "";
 let currentUser = null;
+let isSpotifyConnected = false;
 const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 const requesterNames = new Map();
@@ -379,6 +382,7 @@ async function initSupabase() {
       return;
     }
     loadCreditsForUser(user);
+    loadSpotifyStatus(user);
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       updateProfileIcon(session?.user || null);
       if (!session?.user) {
@@ -387,6 +391,7 @@ async function initSupabase() {
         return;
       }
       loadCreditsForUser(session.user);
+      loadSpotifyStatus(session.user);
     });
     await fetchRequestsRemote();
     await fetchBarRemote();
@@ -485,6 +490,58 @@ function updateProfileIcon(user) {
   menuBtn.classList.add("is-hidden");
 }
 
+function updateSpotifyConnectButton() {
+  if (!spotifyConnectBtn) return;
+  spotifyConnectBtn.textContent = isSpotifyConnected ? "Spotify Connected" : "Connect til Spotify";
+}
+
+async function syncRoomSettings(partial) {
+  if (!supabaseClient || !currentUser || !ROOM_ID) return;
+  const payload = {
+    room_id: ROOM_ID,
+    owner_id: currentUser.id,
+    updated_at: new Date().toISOString(),
+    ...partial,
+  };
+  try {
+    await supabaseClient.from("room_settings").upsert(payload, { onConflict: "room_id" });
+  } catch {
+    // ignore
+  }
+}
+
+async function loadSpotifyStatus(user) {
+  if (!supabaseClient || !user) {
+    isSpotifyConnected = false;
+    updateSpotifyConnectButton();
+    return;
+  }
+  try {
+    const { data } = await supabaseClient
+      .from("spotify_tokens")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isSpotifyConnected = !!data;
+  } catch {
+    isSpotifyConnected = false;
+  }
+  updateSpotifyConnectButton();
+  await syncRoomSettings({ spotify_connected: isSpotifyConnected });
+}
+
+async function disconnectSpotify() {
+  if (!supabaseClient || !currentUser) return;
+  const { error } = await supabaseClient.from("spotify_tokens").delete().eq("user_id", currentUser.id);
+  if (error) {
+    showInfo("Kunne ikke afbryde Spotify. Prøv igen.");
+    return;
+  }
+  isSpotifyConnected = false;
+  updateSpotifyConnectButton();
+  await syncRoomSettings({ spotify_connected: false });
+}
+
 function openDjModal() {
   djError.textContent = "Forkert password. Prøv igen.";
   djError.classList.add("is-hidden");
@@ -542,6 +599,7 @@ function setDjMode(enabled) {
     boostersVisibility.classList.toggle("is-hidden", !enabled);
   }
   applyBoostersVisibility();
+  syncRoomSettings({ dj_mode: enabled, spotify_connected: isSpotifyConnected });
   if (!enabled) {
     disableBrandEdit(true);
   }
@@ -654,34 +712,14 @@ function openSpotify(appUrl, webUrl) {
   }, 800);
 }
 
-function deezerSearch(query) {
-  return new Promise((resolve, reject) => {
-    const callback = `deezer_cb_${searchNonce++}`;
-    const script = document.createElement("script");
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("timeout"));
-    }, 4000);
-
-    function cleanup() {
-      clearTimeout(timeout);
-      if (script.parentNode) script.parentNode.removeChild(script);
-      if (window[callback]) delete window[callback];
-    }
-
-    window[callback] = (data) => {
-      cleanup();
-      resolve(data.data || []);
-    };
-
-    script.src = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&output=jsonp&callback=${callback}`;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("network"));
-    };
-
-    document.body.appendChild(script);
+async function spotifySearch(query) {
+  const fnUrl = `${SUPABASE_URL}/functions/v1/spotify-search?q=${encodeURIComponent(query)}`;
+  const res = await fetch(fnUrl, {
+    headers: { apikey: SUPABASE_ANON_KEY },
   });
+  if (!res.ok) throw new Error("search_failed");
+  const payload = await res.json();
+  return payload?.items || [];
 }
 
 function renderSearchResults(items) {
@@ -694,10 +732,10 @@ function renderSearchResults(items) {
     .map(
       (item) => `
         <li class="search-item" data-id="${item.id}">
-          <img src="${item.album?.cover_small || ""}" alt="${item.title}" />
+          <img src="${item.cover || ""}" alt="${item.title}" />
           <div>
             <div class="search-title">${item.title}</div>
-            <div class="search-artist">${item.artist?.name || ""}</div>
+            <div class="search-artist">${item.artist || ""}</div>
           </div>
           <span class="search-tag">Vælg</span>
         </li>
@@ -712,9 +750,11 @@ function renderSearchResults(items) {
       if (!picked) return;
       selectedTrack = {
         title: picked.title,
-        artist: picked.artist?.name || "",
+        artist: picked.artist || "",
         isrc: picked.isrc || "",
-        cover: picked.album?.cover_small || "",
+        cover: picked.cover || "",
+        spotifyWebUrl: picked.webUrl || "",
+        spotifyAppUrl: picked.uri || "",
       };
       document.getElementById("trackTitle").value = selectedTrack.title;
       if (trackArtistInput) {
@@ -986,7 +1026,13 @@ function addRequest(event) {
   }
 
   const track = selectedTrack || { title, artist };
-  const spotifyLinks = spotifySearchLinks(track);
+  const spotifyLinks = {
+    web: track.spotifyWebUrl || "",
+    app: track.spotifyAppUrl || "",
+  };
+  const fallbackLinks = spotifySearchLinks(track);
+  if (!spotifyLinks.web) spotifyLinks.web = fallbackLinks.web;
+  if (!spotifyLinks.app) spotifyLinks.app = fallbackLinks.app;
   const key = `${track.title}::${track.artist || ""}`.toLowerCase();
   const alreadyQueued = requests.some(
     (item) =>
@@ -1187,6 +1233,12 @@ if (djMenuPanel) {
       openQrModal();
     } else if (action === "edit-name") {
       enableBrandEdit();
+    } else if (action === "spotify-connect") {
+      if (isSpotifyConnected) {
+        disconnectSpotify();
+      } else {
+        startSpotifyConnect();
+      }
     } else if (action === "dj-off") {
       sessionStorage.removeItem(DJ_AUTH_KEY);
       setDjMode(false);
@@ -1215,7 +1267,7 @@ trackTitleInput.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(async () => {
     try {
-      const results = await deezerSearch(query);
+      const results = await spotifySearch(query);
       renderSearchResults(results);
     } catch {
       searchResults.innerHTML = "";
@@ -1303,6 +1355,37 @@ if (infoModal) {
   infoModal.addEventListener("click", (event) => {
     if (event.target === infoModal) closeInfoModal();
   });
+}
+
+async function startSpotifyConnect() {
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.auth.getSession();
+  const session = data?.session;
+  if (!session) {
+    const next = encodeURIComponent(window.location.href);
+    window.location.assign(`index.html?login=1&next=${next}`);
+    return;
+  }
+  try {
+    const fnUrl = `${SUPABASE_URL}/functions/v1/spotify-login?returnTo=${encodeURIComponent(
+      window.location.href
+    )}`;
+    const res = await fetch(fnUrl, {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+    });
+    const payload = await res.json();
+    if (!res.ok || !payload?.url) throw new Error("spotify_login_failed");
+    window.location.assign(payload.url);
+  } catch {
+    showInfo("Kunne ikke forbinde til Spotify lige nu.");
+  }
+}
+
+if (spotifyPlaylistBtn) {
+  spotifyPlaylistBtn.addEventListener("click", startSpotifyConnect);
 }
 
 function applyBoostersVisibility() {
