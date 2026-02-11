@@ -45,6 +45,7 @@ const profileBtn = document.getElementById("profileBtn");
 const menuPanel = document.getElementById("menuPanel");
 const djMenuBtn = document.getElementById("djMenuBtn");
 const djMenuPanel = document.getElementById("djMenuPanel");
+const qrBtnPublic = document.getElementById("qrBtnPublic");
 const qrModal = document.getElementById("qrModal");
 const closeQr = document.getElementById("closeQr");
 const qrImage = document.getElementById("qrImage");
@@ -1288,6 +1289,7 @@ djModal.addEventListener("click", (event) => {
 requestForm.addEventListener("submit", addRequest);
 
 if (djMenuBtn) djMenuBtn.addEventListener("click", toggleDjMenu);
+if (qrBtnPublic) qrBtnPublic.addEventListener("click", openQrModal);
 if (closeQr) closeQr.addEventListener("click", closeQrModal);
 if (qrModal) {
   qrModal.addEventListener("click", (event) => {
