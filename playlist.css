@@ -987,7 +987,7 @@ button.ghost {
 }
 
 .qr-poster {
-  text-align: left;
+  text-align: center;
   justify-items: stretch;
   gap: 18px;
 }
@@ -996,6 +996,8 @@ button.ghost {
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: center;
+  text-align: left;
 }
 
 .qr-logo {
@@ -1024,6 +1026,7 @@ button.ghost {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 12px 14px;
+  text-align: center;
 }
 
 .qr-label {
