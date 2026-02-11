@@ -602,6 +602,7 @@ function setDjMode(enabled) {
   syncRoomSettings({ dj_mode: enabled, spotify_connected: isSpotifyConnected });
   if (!enabled) {
     disableBrandEdit(true);
+    closeDjMenu();
   }
   renderLists();
 }
