@@ -135,6 +135,7 @@ body::after {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .brand-mark {
@@ -159,6 +160,10 @@ body::after {
   font-family: "Fraunces", serif;
   font-size: 20px;
   letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
 }
 
 .brand-sub {
