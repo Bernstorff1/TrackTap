@@ -156,7 +156,8 @@ async function loadScoreboard() {
     playlistNameMap.set(row.code, row.playlist_name || row.code)
   );
 
-  const playlistSorted = playlistIds
+  const validPlaylistIds = playlistIds.filter((id) => playlistNameMap.has(id));
+  const playlistSorted = validPlaylistIds
     .map((id) => ({ id, ...playlistTotals.get(id) }))
     .sort((a, b) => b.total - a.total || b.organic - a.organic);
 
