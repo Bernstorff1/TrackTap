@@ -1,0 +1,87 @@
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
+  const SPOTIFY_CLIENT_ID = Deno.env.get("SPOTIFY_CLIENT_ID") ?? "";
+  const SPOTIFY_REDIRECT_URI = Deno.env.get("SPOTIFY_REDIRECT_URI") ?? "";
+
+  if (
+    !SUPABASE_URL ||
+    !SUPABASE_ANON_KEY ||
+    !SUPABASE_SERVICE_ROLE_KEY ||
+    !SPOTIFY_CLIENT_ID ||
+    !SPOTIFY_REDIRECT_URI
+  ) {
+    return new Response(JSON.stringify({ error: "missing_env" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: "missing_auth" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData?.user;
+  if (userError || !user) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const url = new URL(req.url);
+  const returnTo = url.searchParams.get("returnTo") || "https://tapsterbox.dk/playlist.html";
+  const state = crypto.randomUUID();
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { error: insertError } = await admin.from("spotify_oauth_states").insert({
+    state,
+    user_id: user.id,
+    return_to: returnTo,
+    created_at: new Date().toISOString(),
+  });
+  if (insertError) {
+    return new Response(JSON.stringify({ error: "state_insert_failed" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const scope = [
+    "playlist-modify-private",
+    "playlist-modify-public",
+  ].join(" ");
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: SPOTIFY_CLIENT_ID,
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+    scope,
+    state,
+  });
+
+  return new Response(
+    JSON.stringify({ url: `https://accounts.spotify.com/authorize?${params.toString()}` }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+});
