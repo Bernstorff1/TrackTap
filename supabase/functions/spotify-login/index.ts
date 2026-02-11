@@ -24,6 +24,13 @@ Deno.serve(async (req) => {
     !SPOTIFY_CLIENT_ID ||
     !SPOTIFY_REDIRECT_URI
   ) {
+    console.error("spotify-login missing env", {
+      hasUrl: !!SUPABASE_URL,
+      hasAnon: !!SUPABASE_ANON_KEY,
+      hasService: !!SUPABASE_SERVICE_ROLE_KEY,
+      hasClientId: !!SPOTIFY_CLIENT_ID,
+      hasRedirect: !!SPOTIFY_REDIRECT_URI,
+    });
     return new Response(JSON.stringify({ error: "missing_env" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -32,6 +39,7 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
+    console.error("spotify-login missing auth header");
     return new Response(JSON.stringify({ error: "missing_auth" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -44,10 +52,14 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userData?.user;
   if (userError || !user) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
+    console.error("spotify-login unauthorized", userError?.message || "no_user");
+    return new Response(
+      JSON.stringify({ error: "unauthorized", details: userError?.message || "no_user" }),
+      {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      }
+    );
   }
 
   const url = new URL(req.url);
@@ -62,10 +74,14 @@ Deno.serve(async (req) => {
     created_at: new Date().toISOString(),
   });
   if (insertError) {
-    return new Response(JSON.stringify({ error: "state_insert_failed" }), {
+    console.error("spotify-login state insert failed", insertError.message);
+    return new Response(
+      JSON.stringify({ error: "state_insert_failed", details: insertError.message }),
+      {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      }
+    );
   }
 
   const scope = [

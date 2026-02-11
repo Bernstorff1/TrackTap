@@ -1378,11 +1378,20 @@ async function startSpotifyConnect() {
         apikey: SUPABASE_ANON_KEY,
       },
     });
-    const payload = await res.json();
-    if (!res.ok || !payload?.url) throw new Error("spotify_login_failed");
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+    if (!res.ok || !payload?.url) {
+      const reason = payload?.error || payload?.message || `http_${res.status}`;
+      throw new Error(String(reason));
+    }
     window.location.assign(payload.url);
-  } catch {
-    showInfo("Kunne ikke forbinde til Spotify lige nu.");
+  } catch (error) {
+    const reason = error?.message ? ` (${error.message})` : "";
+    showInfo(`Kunne ikke forbinde til Spotify lige nu${reason}.`);
   }
 }
 
