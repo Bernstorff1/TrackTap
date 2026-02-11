@@ -12,6 +12,7 @@ const cancelBtn = document.getElementById("cancelBtn");
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
+const FUNCTIONS_URL = "https://xwafqfjhbiuogfjnlzln.functions.supabase.co";
 const params = new URLSearchParams(window.location.search);
 const ROOM_ID = (params.get("code") || "").trim().toUpperCase();
 let supabaseClient;
@@ -714,7 +715,7 @@ function openSpotify(appUrl, webUrl) {
 }
 
 async function spotifySearch(query) {
-  const fnUrl = `${SUPABASE_URL}/functions/v1/spotify-search?q=${encodeURIComponent(query)}`;
+  const fnUrl = `${FUNCTIONS_URL}/spotify-search?q=${encodeURIComponent(query)}`;
   const res = await fetch(fnUrl, {
     headers: { apikey: SUPABASE_ANON_KEY },
   });
@@ -1368,7 +1369,7 @@ async function startSpotifyConnect() {
     return;
   }
   try {
-    const fnUrl = `${SUPABASE_URL}/functions/v1/spotify-login?returnTo=${encodeURIComponent(
+    const fnUrl = `${FUNCTIONS_URL}/spotify-login?returnTo=${encodeURIComponent(
       window.location.href
     )}`;
     const res = await fetch(fnUrl, {
