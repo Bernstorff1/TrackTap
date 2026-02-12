@@ -26,7 +26,7 @@
       <div class="user-status" id="userStatus">
         <button id="loginBtn" class="btn ghost small" type="button">Log in</button>
         <div class="user-menu is-hidden" id="userMenu">
-          <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="Bruger">A</button>
+          <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="User">A</button>
           <div class="menu-panel is-hidden" id="userDropdown">
             <button class="menu-item" type="button" data-action="create-playlist">Playlists</button>
             <button class="menu-item" type="button" data-action="profile">View profile</button>
@@ -96,9 +96,9 @@
             <div class="tab-panels">
               <div class="tab-panel active" data-panel="host-login">
                 <div class="host-playlists">
-                  <div id="hostHelper" class="helper">Log ind for at se dine playlister.</div>
+                  <div id="hostHelper" class="helper">Log in to see your playlists.</div>
                   <div id="hostPlaylists" class="playlist-list"></div>
-                  <button id="refreshPlaylists" class="btn ghost small" type="button">Opdater</button>
+                  <button id="refreshPlaylists" class="btn ghost small" type="button">Refresh</button>
                 </div>
               </div>
               <div class="tab-panel" data-panel="host-create">
@@ -168,7 +168,7 @@
       <div class="modal-card auth-card">
         <div class="modal-header">
           <h2 id="authTitle">Log in</h2>
-          <button id="closeAuth" class="ghost">Luk</button>
+          <button id="closeAuth" class="ghost">Close</button>
         </div>
           <div class="auth-body">
             <div class="auth-form">
@@ -204,12 +204,12 @@
       <div class="modal-card confirm-card">
         <div class="modal-header">
           <h2 id="confirmTitle">Confirm</h2>
-          <button id="closeConfirm" class="btn ghost small">Luk</button>
+          <button id="closeConfirm" class="btn ghost small">Close</button>
         </div>
         <p id="confirmMessage" class="helper"></p>
         <div class="actions">
           <button id="confirmCancel" type="button" class="btn ghost">Cancel</button>
-          <button id="confirmOk" type="button" class="btn primary">Ja</button>
+          <button id="confirmOk" type="button" class="btn primary">Yes</button>
         </div>
       </div>
     </div>
@@ -218,7 +218,7 @@
       <div class="modal-card confirm-card">
         <div class="modal-header">
           <h2 id="infoTitle">Message</h2>
-          <button id="closeInfo" class="btn ghost small">Luk</button>
+          <button id="closeInfo" class="btn ghost small">Close</button>
         </div>
         <p id="infoMessage" class="helper"></p>
         <div class="actions">
@@ -228,6 +228,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=20"></script>
   </body>
 </html>

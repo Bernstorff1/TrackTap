@@ -550,7 +550,7 @@ function validateHostPasswords() {
   const password = hostPasswordCreate.value.trim();
   const confirm = hostPasswordConfirm ? hostPasswordConfirm.value.trim() : "";
   const mismatch = !!confirm && password !== confirm;
-  setHelperMessage(createHelper, mismatch ? "Passwords matcher ikke." : CREATE_HELPER_DEFAULT, mismatch);
+  setHelperMessage(createHelper, mismatch ? "Passwords do not match." : CREATE_HELPER_DEFAULT, mismatch);
 }
 
 hostPasswordCreate.addEventListener("input", () => {
@@ -587,9 +587,9 @@ async function renderMyPlaylists() {
   hostPlaylists.innerHTML = rows
     .map(
       (row) => `
-        <div class="playlist-item clickable" data-code="${row.code}" data-name="${row.playlist_name || "Uden navn"}">
+        <div class="playlist-item clickable" data-code="${row.code}" data-name="${row.playlist_name || "Untitled"}">
           <a class="playlist-link" href="playlist.html?code=${encodeURIComponent(row.code)}">
-            <div class="playlist-name">${row.playlist_name || "Uden navn"}</div>
+            <div class="playlist-name">${row.playlist_name || "Untitled"}</div>
             <div class="playlist-meta">${row.code}</div>
           </a>
           <button class="btn ghost small playlist-delete" type="button">Delete</button>
@@ -645,7 +645,7 @@ createForm.addEventListener("submit", async (event) => {
         ? "You must be logged in to create a playlist."
         : error.message === "code_exists"
           ? "Code already exists. Choose another."
-          : `Could not create playlist. ${error?.message || "Prøv igen."}`;
+          : `Could not create playlist. ${error?.message || "Try again."}`;
     setHelperMessage(createHelper, message.trim(), true);
     openInfo(message.trim());
   } finally {
@@ -680,12 +680,12 @@ copyButtons.forEach((button) => {
     try {
       await navigator.clipboard.writeText(value);
       button.dataset.label = button.dataset.label || button.textContent;
-      button.textContent = "Kopieret!";
+      button.textContent = "Copied!";
       setTimeout(() => {
         button.textContent = button.dataset.label;
       }, 1200);
     } catch {
-      window.prompt("Copy koden:", value);
+      window.prompt("Copy code:", value);
     }
   });
 });
@@ -875,7 +875,7 @@ if (authPrimary) {
     const email = authEmail?.value.trim() || "";
     const password = authPassword?.value.trim() || "";
     if (!email || !password) {
-      setHelperMessage(authHelper, "Udfyld email og password.", true);
+      setHelperMessage(authHelper, "Fill in email and password.", true);
       return;
     }
     setHelperMessage(authHelper, "", false);
@@ -918,7 +918,7 @@ authProviderButtons.forEach((btn) => {
         setHelperMessage(authHelper, error.message || "Could not send email.", true);
         return;
       }
-      setHelperMessage(authHelper, "Magic link sendt til din email.", true);
+      setHelperMessage(authHelper, "Magic link sent to your email.", true);
       return;
     }
     await supabaseClient.auth.signInWithOAuth({

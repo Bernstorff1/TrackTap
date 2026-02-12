@@ -150,7 +150,7 @@ async function loadProfile() {
 
   profilePlaylists.innerHTML = rows
     .map((row) => {
-      const title = row.playlist_name || "Uden navn";
+      const title = row.playlist_name || "Untitled";
       const stats = byRoom[row.code] || { upvotes: 0, songs: 0 };
       return `
         <a class="playlist-item clickable" href="playlist.html?code=${encodeURIComponent(row.code)}">

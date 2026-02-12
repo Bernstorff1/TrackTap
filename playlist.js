@@ -39,9 +39,6 @@ const amountValue = document.getElementById("amountValue");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
 const paymentStatus = document.getElementById("paymentStatus");
-const payNowBtn = document.getElementById("payNowBtn");
-const payNowPrice = document.getElementById("payNowPrice");
-const paymentElementMount = document.getElementById("paymentElement");
 const expressCheckoutMount = document.getElementById("expressCheckoutElement");
 const easterEggBtn = document.getElementById("easterEggBtn");
 const easterEgg = document.getElementById("easterEgg");
@@ -125,7 +122,6 @@ let requests = [];
 let stripeClient = null;
 let stripePublishableKey = "";
 let stripeElements = null;
-let stripePaymentElement = null;
 let stripeExpressElement = null;
 let stripeClientSecret = "";
 let stripeIntentAmount = 0;
@@ -907,7 +903,7 @@ function renderLists() {
 
   queuedList.innerHTML = queued.length
     ? queued.map((item) => renderCard(item)).join("")
-    : `<div class="list-empty">Der er lige nu ikke nogen ønsker i kø. Choose hvilken sang skal spilles som den næste.</div>`;
+    : `<div class="list-empty">There are currently no requests in queue. Choose which track should play next.</div>`;
   playedList.innerHTML = played.map((item) => renderCard(item)).join("");
 
   queuedCount.textContent = queued.length;
@@ -977,7 +973,7 @@ function renderCard(item) {
                   <div class="boost-menu is-hidden" data-menu="up">
                     <button class="boost-option" type="button" data-action="boostUp1">+1</button>
                     <button class="boost-option" type="button" data-action="boostUp10" ${voteCredits < 10 ? "disabled" : ""}>+10</button>
-                    <button class="boost-option" type="button" data-action="boostUpAll">+alle</button>
+                    <button class="boost-option" type="button" data-action="boostUpAll">+all</button>
                   </div>
                 </div>`
               : ""
@@ -994,7 +990,7 @@ function renderCard(item) {
                   <div class="boost-menu is-hidden" data-menu="down">
                     <button class="boost-option" type="button" data-action="boostDown1">+1</button>
                     <button class="boost-option" type="button" data-action="boostDown10" ${voteCredits < 10 ? "disabled" : ""}>+10</button>
-                    <button class="boost-option" type="button" data-action="boostDownAll">+alle</button>
+                    <button class="boost-option" type="button" data-action="boostDownAll">+all</button>
                   </div>
                 </div>`
               : ""
@@ -1270,7 +1266,7 @@ if (trackCommentInput) {
 
 
 function updatePayPrices() {
-  if (payNowPrice) payNowPrice.textContent = `${selectedAmount} kr`;
+  // Wallet-only flow: amount is shown via the slider label.
 }
 
 function updateAmountLabel() {
@@ -1287,24 +1283,10 @@ function setPaymentStatus(message, isError = false) {
 
 function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
-  if (!payNowBtn) return;
-  payNowBtn.disabled = isBusy;
-  if (isBusy) {
-    payNowBtn.dataset.originalText = payNowBtn.textContent || "";
-    payNowBtn.textContent = text || "Behandler betaling...";
-    return;
-  }
-  payNowBtn.textContent = "";
-  payNowBtn.append("Betal ");
-  if (payNowPrice) {
-    payNowBtn.append(payNowPrice);
-  } else {
-    payNowBtn.append(`${selectedAmount} kr`);
-  }
 }
 
 async function getAccessTokenOrThrow() {
-  if (!supabaseClient) throw new Error("Mangler login");
+  if (!supabaseClient) throw new Error("Missing login");
   const nowSec = Math.floor(Date.now() / 1000);
   const initial = await supabaseClient.auth.getSession();
   const initialSession = initial?.data?.session || null;
@@ -1319,7 +1301,7 @@ async function getAccessTokenOrThrow() {
   }
 
   if (initialToken) return initialToken;
-  throw new Error("Log ind igen for at betale.");
+  throw new Error("Log in again to pay.");
 }
 
 async function createPaymentIntent(amount) {
@@ -1346,10 +1328,6 @@ function unmountStripeElements() {
   if (stripeExpressElement) {
     stripeExpressElement.unmount();
     stripeExpressElement = null;
-  }
-  if (stripePaymentElement) {
-    stripePaymentElement.unmount();
-    stripePaymentElement = null;
   }
   stripeElements = null;
   stripeClientSecret = "";
@@ -1383,7 +1361,7 @@ async function refreshCreditsAfterPayment(expectedCredits) {
 
 async function confirmStripePayment() {
   if (!stripeClient || !stripeElements || !stripeClientSecret) {
-    throw new Error("Betalingsfeltet er ikke klar endnu.");
+    throw new Error("Payment form is not ready yet.");
   }
   const returnUrl = new URL(window.location.href);
   returnUrl.searchParams.set("payment", "success");
@@ -1399,18 +1377,18 @@ async function confirmStripePayment() {
 }
 
 async function mountStripeForAmount(amount) {
-  if (!paymentElementMount || !expressCheckoutMount) {
-    throw new Error("Betalingsfelter mangler i siden.");
+  if (!expressCheckoutMount) {
+    throw new Error("Wallet payment field is missing from the page.");
   }
   if (!window.Stripe) {
-    throw new Error("Stripe kunne ikke loades.");
+    throw new Error("Stripe could not be loaded.");
   }
-  setPaymentStatus("Starter betaling...");
+  setPaymentStatus("Starting payment...");
   const payload = await createPaymentIntent(amount);
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
   if (!publishableKey || !clientSecret) {
-    throw new Error("Mangler Stripe-oplysninger fra serveren.");
+    throw new Error("Missing Stripe details from the server.");
   }
 
   if (!stripeClient || stripePublishableKey !== publishableKey) {
@@ -1439,6 +1417,7 @@ async function mountStripeForAmount(amount) {
       applePay: "buy",
       googlePay: "pay",
     },
+    paymentMethodOrder: ["apple_pay", "google_pay"],
     layout: {
       maxColumns: 2,
       maxRows: 1,
@@ -1449,14 +1428,14 @@ async function mountStripeForAmount(amount) {
   stripeExpressElement.on("confirm", async () => {
     if (stripeBusy) return;
     try {
-      setPayBusy(true, "Behandler wallet-betaling...");
+      setPayBusy(true, "Processing wallet payment...");
       setPaymentStatus("Processing payment...");
       await confirmStripePayment();
       await refreshCreditsAfterPayment(stripeIntentAmount);
       setPaymentStatus(`Payment approved. ${stripeIntentAmount} credits added.`);
-      flashNotice(`+${stripeIntentAmount} kreditter`);
+      flashNotice(`+${stripeIntentAmount} credits`);
     } catch (error) {
-      setPaymentStatus(error?.message || "Betalingen fejlede.", true);
+      setPaymentStatus(error?.message || "Payment failed.", true);
     } finally {
       setPayBusy(false);
       try {
@@ -1467,11 +1446,7 @@ async function mountStripeForAmount(amount) {
     }
   });
 
-  stripePaymentElement = stripeElements.create("payment", {
-    layout: "tabs",
-  });
   stripeExpressElement.mount(expressCheckoutMount);
-  stripePaymentElement.mount(paymentElementMount);
   stripeReadyForAmount = true;
   setPaymentStatus("");
 }
@@ -1488,40 +1463,6 @@ async function ensureStripeForAmount(amount) {
   } finally {
     setPayBusy(false);
   }
-}
-
-async function handlePayNow() {
-  if (!currentUser) {
-    showInfo("Log in to buy credits.");
-    return;
-  }
-  if (!stripeReadyForAmount || stripeIntentAmount !== selectedAmount) {
-    await ensureStripeForAmount(selectedAmount);
-    if (!stripeReadyForAmount || stripeIntentAmount !== selectedAmount) return;
-  }
-  try {
-    setPayBusy(true, "Behandler betaling...");
-    setPaymentStatus("Processing payment...");
-    await confirmStripePayment();
-    await refreshCreditsAfterPayment(selectedAmount);
-    setPaymentStatus(`Payment approved. ${selectedAmount} credits added.`);
-    flashNotice(`+${selectedAmount} kreditter`);
-  } catch (error) {
-    setPaymentStatus(error?.message || "Betalingen fejlede.", true);
-  } finally {
-    setPayBusy(false);
-    try {
-      await mountStripeForAmount(selectedAmount);
-    } catch {
-      // ignore remount error
-    }
-  }
-}
-
-if (payNowBtn) {
-  payNowBtn.addEventListener("click", () => {
-    handlePayNow();
-  });
 }
 
 if (amountRange) {
@@ -1660,7 +1601,7 @@ easterEggBtn.addEventListener("click", () => {
   easterEgg.classList.toggle("is-hidden");
   easterEggBtn.textContent = easterEgg.classList.contains("is-hidden")
     ? "Find easter egg"
-    : "Skjul easter egg";
+    : "Hide easter egg";
 });
 
 trackTitleInput.addEventListener("input", () => {
@@ -1839,7 +1780,7 @@ async function exportPlayedToSpotify() {
   if (!supabaseClient) return;
   const playedTracks = collectPlayedTracks();
   if (!playedTracks.length) {
-    showInfo("Ingen sange under Played endnu.");
+    showInfo("No songs in Played yet.");
     return;
   }
 

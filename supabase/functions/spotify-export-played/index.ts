@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
   const accessToken = String(body?.accessToken || "").trim();
   const fallbackUserId = String(body?.userId || "").trim();
   const playlistNameRaw = String(body?.playlistName || "").trim();
-  const playlistName = (playlistNameRaw || "Tapster Afspillet").slice(0, 90);
+  const playlistName = (playlistNameRaw || "Tapster Played").slice(0, 90);
   const tracks = Array.isArray(body?.tracks) ? (body.tracks as InputTrack[]) : [];
 
   if (!accessToken) {
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       name: playlistName,
-      description: "Oprettet fra Tapster (Afspillet)",
+      description: "Created from Tapster (Played)",
       public: false,
     }),
   });

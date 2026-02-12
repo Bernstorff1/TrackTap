@@ -458,13 +458,6 @@ body::after {
   min-height: 44px;
 }
 
-.stripe-payment {
-  padding: 10px;
-  border-radius: 14px;
-  background: rgba(16, 18, 27, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
 .pay-btn {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: #10121b;

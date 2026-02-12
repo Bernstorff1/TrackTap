@@ -24,7 +24,8 @@ Deno.serve(async (req) => {
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
+  const SUPABASE_SERVICE_ROLE_KEY =
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
   const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
   const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") ?? "";
 
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
   const stripeBody = new URLSearchParams({
     amount: String(amountOre),
     currency: "dkk",
-    "automatic_payment_methods[enabled]": "true",
+    "payment_method_types[]": "card",
     description: `Tapster credits (${amount})`,
     "metadata[user_id]": userId,
     "metadata[credits]": String(amount),

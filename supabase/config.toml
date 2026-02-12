@@ -42,3 +42,15 @@ entrypoint = "./functions/spotify-export-played/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/spotify-export-played/*.html" ]
+
+[functions.stripe-create-payment-intent]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe-create-payment-intent/deno.json"
+entrypoint = "./functions/stripe-create-payment-intent/index.ts"
+
+[functions.stripe-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe-webhook/deno.json"
+entrypoint = "./functions/stripe-webhook/index.ts"
