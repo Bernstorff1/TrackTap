@@ -519,6 +519,12 @@ body::after {
   color: #9fffd2;
 }
 
+.payment-debug {
+  font-size: 11px;
+  color: rgba(233, 241, 255, 0.72);
+  line-height: 1.35;
+}
+
 .amount-slider {
   display: grid;
   gap: 8px;

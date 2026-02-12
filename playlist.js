@@ -39,6 +39,7 @@ const amountValue = document.getElementById("amountValue");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
 const paymentStatus = document.getElementById("paymentStatus");
+const paymentDebug = document.getElementById("paymentDebug");
 const expressCheckoutMount = document.getElementById("expressCheckoutElement");
 const easterEggBtn = document.getElementById("easterEggBtn");
 const easterEgg = document.getElementById("easterEgg");
@@ -1281,6 +1282,12 @@ function setPaymentStatus(message, isError = false) {
   paymentStatus.classList.toggle("payment-success", !!(message && !isError));
 }
 
+function setPaymentDebug(message) {
+  if (!paymentDebug) return;
+  paymentDebug.textContent = message || "";
+  paymentDebug.classList.toggle("is-hidden", !message);
+}
+
 function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
 }
@@ -1422,6 +1429,30 @@ async function mountStripeForAmount(amount) {
       maxRows: 1,
       overflow: "never",
     },
+  });
+
+  stripeExpressElement.on("ready", (event) => {
+    const methods = event?.availablePaymentMethods || null;
+    if (!methods) {
+      setPaymentDebug(
+        "Wallet debug: Ingen tilgaengelige wallets for denne browser/enhed/session."
+      );
+      return;
+    }
+    const enabled = Object.entries(methods)
+      .filter(([, available]) => !!available)
+      .map(([name]) => name);
+    if (!enabled.length) {
+      setPaymentDebug("Wallet debug: availablePaymentMethods returnerede 0 metoder.");
+      return;
+    }
+    setPaymentDebug(`Wallet debug: ${enabled.join(", ")}`);
+  });
+
+  stripeExpressElement.on("loaderror", (event) => {
+    const code = event?.error?.code || "unknown";
+    const message = event?.error?.message || "";
+    setPaymentDebug(`Wallet debug error: ${code}${message ? ` - ${message}` : ""}`);
   });
 
   stripeExpressElement.on("confirm", async () => {
