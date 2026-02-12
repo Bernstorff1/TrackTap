@@ -24,8 +24,9 @@ Deno.serve(async (req) => {
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-  const SUPABASE_SERVICE_ROLE_KEY =
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
+  const primaryServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const fallbackServiceRoleKey = Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
+  const SUPABASE_SERVICE_ROLE_KEY = primaryServiceRoleKey || fallbackServiceRoleKey;
   const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
   const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") ?? "";
 
@@ -51,9 +52,19 @@ Deno.serve(async (req) => {
     return json({ error: "invalid_amount" }, 400);
   }
 
-  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: userData, error: userError } = await admin.auth.getUser(accessToken);
-  const userId = userData?.user?.id || "";
+  let admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  let { data: userData, error: userError } = await admin.auth.getUser(accessToken);
+  let userId = userData?.user?.id || "";
+
+  // If one key is stale/misconfigured, retry with the alternate key before failing auth.
+  if (!userId && primaryServiceRoleKey && fallbackServiceRoleKey && primaryServiceRoleKey !== fallbackServiceRoleKey) {
+    admin = createClient(SUPABASE_URL, fallbackServiceRoleKey);
+    const retry = await admin.auth.getUser(accessToken);
+    userData = retry.data;
+    userError = retry.error;
+    userId = userData?.user?.id || "";
+  }
+
   if (!userId) {
     return json({ error: "unauthorized", details: userError?.message || "no_user" }, 401);
   }

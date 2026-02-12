@@ -1299,16 +1299,18 @@ async function getAccessTokenOrThrow() {
   const initialSession = initial?.data?.session || null;
   const initialToken = initialSession?.access_token || "";
   const expiresAt = Number(initialSession?.expires_at || 0);
+  const shouldRefresh = !initialToken || !expiresAt || expiresAt - nowSec < 90;
 
   // Refresh proactively so Edge Functions don't reject near-expired tokens as invalid JWT.
-  if (!initialToken || !expiresAt || expiresAt - nowSec < 90) {
+  if (shouldRefresh) {
     const refreshed = await supabaseClient.auth.refreshSession();
     const refreshedToken = refreshed?.data?.session?.access_token || "";
     if (refreshedToken) return refreshedToken;
+    throw new Error("Din session udløb. Log ind igen.");
   }
 
   if (initialToken) return initialToken;
-  throw new Error("Log in again to pay.");
+  throw new Error("Din session udløb. Log ind igen.");
 }
 
 async function createPaymentIntent(amount) {
