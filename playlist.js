@@ -107,6 +107,7 @@ const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
 const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
 const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
+const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -591,6 +592,11 @@ async function loadSpotifyStatus(user) {
     sessionStorage.removeItem(SPOTIFY_CONNECTED_PENDING_KEY);
     sessionStorage.removeItem(SPOTIFY_CONNECT_ROOM_KEY);
   }
+  const exportPending = sessionStorage.getItem(SPOTIFY_EXPORT_PENDING_KEY) === "true";
+  if (isSpotifyConnected && exportPending && pendingRoom === ROOM_ID) {
+    sessionStorage.removeItem(SPOTIFY_EXPORT_PENDING_KEY);
+    await exportPlayedToSpotify();
+  }
 }
 
 async function checkRoomSpotifyStatus() {
@@ -890,7 +896,9 @@ function renderLists() {
   const queued = requests.filter((r) => r.status === "queued").sort(sortQueued);
   const played = requests.filter((r) => r.status === "played").sort(sortPlayed);
 
-  queuedList.innerHTML = queued.map((item) => renderCard(item)).join("");
+  queuedList.innerHTML = queued.length
+    ? queued.map((item) => renderCard(item)).join("")
+    : `<div class="list-empty">Der er lige nu ikke nogen ønsker i kø. Vælg hvilken sang skal spilles som den næste.</div>`;
   playedList.innerHTML = played.map((item) => renderCard(item)).join("");
 
   queuedCount.textContent = queued.length;
@@ -1566,8 +1574,82 @@ async function startSpotifyConnect() {
   }
 }
 
+function collectPlayedTracks() {
+  return requests
+    .filter((item) => item.status === "played")
+    .sort(sortPlayed)
+    .map((item) => ({
+      title: item.title || "",
+      artist: item.artist || "",
+      uri: item.spotifyAppUrl || "",
+      webUrl: item.spotifyWebUrl || "",
+    }));
+}
+
+async function exportPlayedToSpotify() {
+  if (!supabaseClient) return;
+  const playedTracks = collectPlayedTracks();
+  if (!playedTracks.length) {
+    showInfo("Ingen sange under Afspillet endnu.");
+    return;
+  }
+
+  let session = null;
+  try {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    if (refreshed?.error || !refreshed?.data?.session?.access_token) throw new Error("refresh_failed");
+    session = refreshed.data.session;
+  } catch {
+    session = null;
+  }
+  if (!session) {
+    const next = encodeURIComponent(window.location.href);
+    window.location.assign(`index.html?login=1&next=${next}`);
+    return;
+  }
+
+  const playlistName = `${(brandNameText?.textContent || "Tapster").trim()} - Afspillet`;
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/spotify-export-played`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        userId: currentUser?.id || "",
+        roomId: ROOM_ID,
+        playlistName,
+        tracks: playedTracks,
+      }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload?.ok) {
+      const reason = payload?.details || payload?.error || `http_${res.status}`;
+      throw new Error(String(reason));
+    }
+    flashNotice("Playlist added to Spotify", 1300);
+    if (payload.playlistUrl) {
+      window.open(payload.playlistUrl, "_blank", "noopener");
+    }
+  } catch (error) {
+    const reason = error?.message ? ` (${error.message})` : "";
+    showInfo(`Kunne ikke oprette Spotify-playliste${reason}.`);
+  }
+}
+
+async function handleSpotifyPlaylistButton() {
+  if (!isSpotifyConnected) {
+    sessionStorage.setItem(SPOTIFY_EXPORT_PENDING_KEY, "true");
+    await startSpotifyConnect();
+    return;
+  }
+  await exportPlayedToSpotify();
+}
+
 if (spotifyPlaylistBtn) {
-  spotifyPlaylistBtn.addEventListener("click", startSpotifyConnect);
+  spotifyPlaylistBtn.addEventListener("click", handleSpotifyPlaylistButton);
 }
 
 function applyBoostersVisibility() {

@@ -703,6 +703,16 @@ body::after {
   display: grid;
 }
 
+.list-empty {
+  padding: 18px 16px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(10, 14, 30, 0.42);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
 .played-actions {
   margin: 0 0 14px;
   display: flex;
