@@ -1305,13 +1305,21 @@ function setPayBusy(isBusy, text) {
 
 async function getAccessTokenOrThrow() {
   if (!supabaseClient) throw new Error("Mangler login");
+  const nowSec = Math.floor(Date.now() / 1000);
   const initial = await supabaseClient.auth.getSession();
-  const initialToken = initial?.data?.session?.access_token || "";
+  const initialSession = initial?.data?.session || null;
+  const initialToken = initialSession?.access_token || "";
+  const expiresAt = Number(initialSession?.expires_at || 0);
+
+  // Refresh proactively so Edge Functions don't reject near-expired tokens as invalid JWT.
+  if (!initialToken || !expiresAt || expiresAt - nowSec < 90) {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    const refreshedToken = refreshed?.data?.session?.access_token || "";
+    if (refreshedToken) return refreshedToken;
+  }
+
   if (initialToken) return initialToken;
-  const refreshed = await supabaseClient.auth.refreshSession();
-  const refreshedToken = refreshed?.data?.session?.access_token || "";
-  if (refreshedToken) return refreshedToken;
-  throw new Error("Log in again to pay.");
+  throw new Error("Log ind igen for at betale.");
 }
 
 async function createPaymentIntent(amount) {
