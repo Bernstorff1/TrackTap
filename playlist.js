@@ -1318,15 +1318,28 @@ async function createPaymentIntent(amount) {
   if (!Number.isFinite(amount) || !PAYMENT_AMOUNTS.includes(amount)) {
     throw new Error("Invalid amount selected.");
   }
-  const postIntent = async (token) =>
-    fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ amount }),
-    });
+  const postIntent = async (token) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    try {
+      return await fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("Timeout fra betalingsserveren. Proev igen om lidt.");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
   const token = await getAccessTokenOrThrow();
   let res = await postIntent(token);
@@ -1420,6 +1433,7 @@ async function mountStripeForAmount(amount) {
   setPaymentStatus("Starter betaling...");
   setPaymentDebug("Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...");
   const payload = await createPaymentIntent(amount);
+  setPaymentDebug("Forbinder til Apple Pay/Google Pay...");
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
   if (!publishableKey || !clientSecret) {
