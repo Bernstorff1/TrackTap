@@ -1410,7 +1410,8 @@ async function mountStripeForAmount(amount) {
   if (!window.Stripe) {
     throw new Error("Stripe could not be loaded.");
   }
-  setPaymentStatus("Starting payment...");
+  setPaymentStatus("Starter betaling...");
+  setPaymentDebug("Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...");
   const payload = await createPaymentIntent(amount);
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
@@ -1455,7 +1456,7 @@ async function mountStripeForAmount(amount) {
     const methods = event?.availablePaymentMethods || null;
     if (!methods) {
       setPaymentDebug(
-        "Wallet debug: Ingen tilgaengelige wallets for denne browser/enhed/session."
+        "Apple Pay/Google Pay er ikke tilgaengelig lige nu. Proev i Safari paa iPhone med Wallet sat op."
       );
       return;
     }
@@ -1463,16 +1464,26 @@ async function mountStripeForAmount(amount) {
       .filter(([, available]) => !!available)
       .map(([name]) => name);
     if (!enabled.length) {
-      setPaymentDebug("Wallet debug: availablePaymentMethods returnerede 0 metoder.");
+      setPaymentDebug(
+        "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."
+      );
       return;
     }
-    setPaymentDebug(`Wallet debug: ${enabled.join(", ")}`);
+    const labels = enabled.map((method) => {
+      const normalized = String(method).toLowerCase().replace(/[_-]/g, "");
+      if (normalized.includes("apple")) return "Apple Pay";
+      if (normalized.includes("google")) return "Google Pay";
+      return method;
+    });
+    setPaymentDebug(`${labels.join(" + ")} er klar til betaling.`);
   });
 
   stripeExpressElement.on("loaderror", (event) => {
     const code = event?.error?.code || "unknown";
     const message = event?.error?.message || "";
-    setPaymentDebug(`Wallet debug error: ${code}${message ? ` - ${message}` : ""}`);
+    setPaymentDebug(
+      `Apple Pay/Google Pay kunne ikke indlaeses (${code}${message ? `: ${message}` : ""}).`
+    );
   });
 
   stripeExpressElement.on("confirm", async () => {

@@ -520,9 +520,13 @@ body::after {
 }
 
 .payment-debug {
-  font-size: 11px;
-  color: rgba(233, 241, 255, 0.72);
+  font-size: 12px;
+  color: #ffd8de;
   line-height: 1.35;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 123, 143, 0.14);
+  border: 1px solid rgba(255, 123, 143, 0.28);
 }
 
 .amount-slider {
