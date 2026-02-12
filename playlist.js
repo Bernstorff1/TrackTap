@@ -493,7 +493,7 @@ function updateProfileIcon(user) {
 
 function updateSpotifyConnectButton() {
   if (!spotifyConnectBtn) return;
-  spotifyConnectBtn.textContent = isSpotifyConnected ? "Spotify Connected" : "Connect til Spotify";
+  spotifyConnectBtn.textContent = isSpotifyConnected ? "Disconnect spotify" : "Connect til Spotify";
 }
 
 async function syncRoomSettings(partial) {
@@ -541,6 +541,7 @@ async function disconnectSpotify() {
   isSpotifyConnected = false;
   updateSpotifyConnectButton();
   await syncRoomSettings({ spotify_connected: false });
+  flashNotice("You have disconnected succesfully", 1000);
 }
 
 function openDjModal() {
@@ -1014,6 +1015,33 @@ function closeInfoModal() {
   infoModal.classList.add("hidden");
 }
 
+function flashNotice(message, duration = 1000) {
+  const el = document.createElement("div");
+  el.textContent = message;
+  el.setAttribute(
+    "style",
+    [
+      "position:fixed",
+      "top:16px",
+      "left:50%",
+      "transform:translateX(-50%)",
+      "z-index:2000",
+      "padding:10px 14px",
+      "border-radius:999px",
+      "background:rgba(8,12,28,0.95)",
+      "border:1px solid rgba(0,229,255,0.45)",
+      "color:#eaf7ff",
+      "font-size:13px",
+      "font-weight:700",
+      "box-shadow:0 10px 30px rgba(0,0,0,0.4)",
+    ].join(";")
+  );
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.remove();
+  }, duration);
+}
+
 function addRequest(event) {
   event.preventDefault();
   const title = document.getElementById("trackTitle").value.trim();
@@ -1468,7 +1496,17 @@ updateCreditsDisplay();
 updatePayPrices();
 
 initSupabase();
-sessionStorage.removeItem(DJ_AUTH_KEY);
+
+if (sessionStorage.getItem(DJ_AUTH_KEY) === "true") {
+  setDjMode(true);
+}
+
+if (params.get("spotify") === "connected") {
+  flashNotice("Spotify connected successfully", 1000);
+  const clean = new URL(window.location.href);
+  clean.searchParams.delete("spotify");
+  window.history.replaceState({}, "", clean.toString());
+}
 
 applyBoostersVisibility();
 
