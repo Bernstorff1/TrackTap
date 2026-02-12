@@ -112,16 +112,27 @@ async function queueTrack(accessToken, uri) {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  return res.ok;
+  return {
+    ok: res.ok,
+    status: res.status,
+    text: res.ok ? "" : await res.text(),
+  };
 }
 
 async function getCurrentlyPlaying(accessToken) {
   const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (res.status === 204) return null;
-  if (!res.ok) return null;
-  return res.json();
+  if (res.status === 204) return { state: "no_content", data: null };
+  if (!res.ok) {
+    return {
+      state: "error",
+      status: res.status,
+      text: await res.text(),
+      data: null,
+    };
+  }
+  return { state: "ok", data: await res.json() };
 }
 
 async function processRoom(room) {
@@ -134,7 +145,12 @@ async function processRoom(room) {
   if (!tokenRow) return;
 
   const accessToken = await refreshUserToken(tokenRow);
-  const playing = await getCurrentlyPlaying(accessToken);
+  const playingResult = await getCurrentlyPlaying(accessToken);
+  if (playingResult.state === "error") {
+    console.error("Currently playing failed", room.room_id, playingResult.status, playingResult.text);
+    return;
+  }
+  const playing = playingResult.data;
   if (!playing || !playing.is_playing) return;
 
   const remaining = (playing.item?.duration_ms || 0) - (playing.progress_ms || 0);
@@ -161,8 +177,11 @@ async function processRoom(room) {
   }
   if (!uri) return;
 
-  const queuedOk = await queueTrack(accessToken, uri);
-  if (!queuedOk) return;
+  const queuedResult = await queueTrack(accessToken, uri);
+  if (!queuedResult.ok) {
+    console.error("Queue track failed", room.room_id, queuedResult.status, queuedResult.text);
+    return;
+  }
 
   await supabase.from("requests").update({
     status: "played",

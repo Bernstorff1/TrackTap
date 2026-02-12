@@ -95,6 +95,9 @@ Deno.serve(async (req) => {
   const scope = [
     "playlist-modify-private",
     "playlist-modify-public",
+    "user-read-currently-playing",
+    "user-read-playback-state",
+    "user-modify-playback-state",
   ].join(" ");
   const params = new URLSearchParams({
     response_type: "code",
