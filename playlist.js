@@ -1363,15 +1363,16 @@ async function startSpotifyConnect() {
   if (!supabaseClient) return;
   let session = null;
   try {
-    let { data } = await supabaseClient.auth.getSession();
-    session = data?.session || null;
-    if (!session) {
-      const refreshed = await supabaseClient.auth.refreshSession();
-      session = refreshed?.data?.session || null;
-    } else {
-      const refreshed = await supabaseClient.auth.refreshSession();
-      session = refreshed?.data?.session || session;
+    const initial = await supabaseClient.auth.getSession();
+    session = initial?.data?.session || null;
+    if (!session) throw new Error("no_session");
+
+    // Require a fresh session; do not fall back to stale tokens.
+    const refreshed = await supabaseClient.auth.refreshSession();
+    if (refreshed?.error || !refreshed?.data?.session?.access_token) {
+      throw new Error("refresh_failed");
     }
+    session = refreshed.data.session;
   } catch {
     session = null;
   }
@@ -1400,7 +1401,7 @@ async function startSpotifyConnect() {
       payload = null;
     }
     if (!res.ok || !payload?.url) {
-      const reason = payload?.error || payload?.message || `http_${res.status}`;
+      const reason = payload?.details || payload?.error || payload?.message || `http_${res.status}`;
       throw new Error(String(reason));
     }
     window.location.assign(payload.url);
