@@ -55,8 +55,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const clientApiKey = req.headers.get("apikey") || SUPABASE_ANON_KEY;
-  const supabase = createClient(SUPABASE_URL, clientApiKey);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
   const user = userData?.user;
   if (userError || !user) {
