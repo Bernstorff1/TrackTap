@@ -47,9 +47,9 @@ const supabaseClient = window.supabase
       auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
     })
   : null;
-const GUEST_HELPER_DEFAULT = "Koden skal være 6–8 tegn.";
-const HOST_HELPER_DEFAULT = "Log ind for at se dine playlister.";
-const CREATE_HELPER_DEFAULT = "Udfyld password for at fortsætte.";
+const GUEST_HELPER_DEFAULT = "Code must be 6-8 characters.";
+const HOST_HELPER_DEFAULT = "Log in to see your playlists.";
+const CREATE_HELPER_DEFAULT = "Enter password to continue.";
 
 const authModal = document.getElementById("authModal");
 const authTitle = document.getElementById("authTitle");
@@ -125,7 +125,7 @@ function renderSuggestions(listEl, items, onPick) {
       (item) => `
         <li data-code="${item.code}">
           <span class="code">${item.code}</span>
-          <span class="name">${item.playlist_name || "Playliste"}</span>
+          <span class="name">${item.playlist_name || "Playlist"}</span>
         </li>
       `
     )
@@ -184,7 +184,7 @@ async function ensureProfile(user) {
     if (!data) {
       await supabaseClient.from("profiles").insert({
         id: user.id,
-        display_name: user.user_metadata?.full_name || user.email || "Bruger",
+        display_name: user.user_metadata?.full_name || user.email || "User",
         credits: 10,
         updated_at: new Date().toISOString(),
       });
@@ -242,8 +242,8 @@ function setHostInlineVisible(isVisible) {
 function openAuthModal(mode) {
   if (!authModal || !authTitle || !authPrimary) return;
   const isSignup = mode === "signup";
-  authTitle.textContent = isSignup ? "Opret bruger" : "Log ind";
-  authPrimary.textContent = isSignup ? "Opret bruger" : "Log ind";
+  authTitle.textContent = isSignup ? "Create account" : "Log in";
+  authPrimary.textContent = isSignup ? "Create account" : "Log in";
   authPrimary.dataset.mode = isSignup ? "signup" : "login";
   setHelperMessage(authHelper, "", false);
   authModal.classList.remove("hidden");
@@ -256,7 +256,7 @@ function closeAuthModal() {
   document.body.classList.remove("modal-open");
 }
 
-function openConfirm(message, title = "Bekræft") {
+function openConfirm(message, title = "Confirm") {
   if (!confirmModal || !confirmMessage || !confirmTitle) return Promise.resolve(false);
   confirmTitle.textContent = title;
   confirmMessage.textContent = message;
@@ -277,7 +277,7 @@ function closeConfirmModal(result) {
   }
 }
 
-function openInfo(message, title = "Besked") {
+function openInfo(message, title = "Message") {
   if (!infoModal || !infoMessage || !infoTitle) return;
   infoTitle.textContent = title;
   infoMessage.textContent = message;
@@ -300,7 +300,7 @@ function updateUserStatus(user) {
     if (guestAuth) guestAuth.classList.remove("is-hidden");
     return;
   }
-  const name = user.user_metadata?.full_name || user.email || "Bruger";
+  const name = user.user_metadata?.full_name || user.email || "User";
   const initial = (name.trim()[0] || "B").toUpperCase();
   userAvatarBtn.textContent = initial;
   loginBtn.classList.add("is-hidden");
@@ -512,7 +512,7 @@ guestForm.addEventListener("submit", async (event) => {
     await joinAsGuest(code);
     window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
   } catch (error) {
-    const message = error.message === "not_found" ? "Koden findes ikke." : "Kunne ikke finde baren.";
+    const message = error.message === "not_found" ? "Code not found." : "Could not find the bar.";
     setHelperMessage(guestHelper, message, true);
   }
 });
@@ -540,7 +540,7 @@ if (guestFormHost) {
       await joinAsGuest(code);
       window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
     } catch (error) {
-      const message = error.message === "not_found" ? "Koden findes ikke." : "Kunne ikke finde baren.";
+      const message = error.message === "not_found" ? "Code not found." : "Could not find the bar.";
       setHelperMessage(guestHelperHost, message, true);
     }
   });
@@ -581,7 +581,7 @@ async function renderMyPlaylists() {
   }
   setHelperMessage(hostHelper, "", false);
   if (!rows.length) {
-    hostPlaylists.innerHTML = "<div class=\"playlist-meta\">Ingen playlister endnu.</div>";
+    hostPlaylists.innerHTML = "<div class=\"playlist-meta\">No playlists yet.</div>";
     return;
   }
   hostPlaylists.innerHTML = rows
@@ -592,7 +592,7 @@ async function renderMyPlaylists() {
             <div class="playlist-name">${row.playlist_name || "Uden navn"}</div>
             <div class="playlist-meta">${row.code}</div>
           </a>
-          <button class="btn ghost small playlist-delete" type="button">Slet</button>
+          <button class="btn ghost small playlist-delete" type="button">Delete</button>
         </div>
       `
     )
@@ -601,11 +601,11 @@ async function renderMyPlaylists() {
 
 async function deletePlaylist(code, name) {
   if (!supabaseClient) return;
-  const confirmed = await openConfirm(`Er du sikker på du vil slette ${name}?`);
+  const confirmed = await openConfirm(`Are you sure you want to delete ${name}?`);
   if (!confirmed) return;
   const { error } = await supabaseClient.from("playlists").delete().eq("code", code);
   if (error) {
-    openInfo("Kunne ikke slette playlisten. Prøv igen.");
+    openInfo("Could not delete playlist. Try again.");
     return;
   }
   renderMyPlaylists();
@@ -629,7 +629,7 @@ createForm.addEventListener("submit", async (event) => {
   if (!createBtn.dataset.label) {
     createBtn.dataset.label = createBtn.textContent;
   }
-  setLoading(createBtn, true, "Opretter...");
+  setLoading(createBtn, true, "Creating...");
 
   try {
     const result = await createBar({ playlistName, hostPassword: password, desiredCode });
@@ -642,14 +642,14 @@ createForm.addEventListener("submit", async (event) => {
   } catch (error) {
     const message =
       error.message === "auth_required"
-        ? "Du skal være logget ind for at oprette en playliste."
+        ? "You must be logged in to create a playlist."
         : error.message === "code_exists"
-          ? "Koden findes allerede. Vælg en anden."
-          : `Kunne ikke oprette playliste. ${error?.message || "Prøv igen."}`;
+          ? "Code already exists. Choose another."
+          : `Could not create playlist. ${error?.message || "Prøv igen."}`;
     setHelperMessage(createHelper, message.trim(), true);
     openInfo(message.trim());
   } finally {
-    setLoading(createBtn, false, "Opretter...");
+    setLoading(createBtn, false, "Creating...");
   }
 });
 
@@ -685,7 +685,7 @@ copyButtons.forEach((button) => {
         button.textContent = button.dataset.label;
       }, 1200);
     } catch {
-      window.prompt("Kopiér koden:", value);
+      window.prompt("Copy koden:", value);
     }
   });
 });
@@ -707,7 +707,7 @@ if (hostPlaylists) {
     const item = target.closest(".playlist-item");
     if (!item) return;
     const code = item.getAttribute("data-code");
-    const name = item.getAttribute("data-name") || "playliste";
+    const name = item.getAttribute("data-name") || "playlist";
     if (!code) return;
     event.preventDefault();
     deletePlaylist(code, name);
@@ -869,7 +869,7 @@ if (hostPlaylists) {
 if (authPrimary) {
   authPrimary.addEventListener("click", async () => {
     if (!supabaseClient) {
-      setHelperMessage(authHelper, "Auth ikke tilgængelig.", true);
+      setHelperMessage(authHelper, "Auth not available.", true);
       return;
     }
     const email = authEmail?.value.trim() || "";
@@ -884,14 +884,14 @@ if (authPrimary) {
       if (mode === "signup") {
         const { error } = await supabaseClient.auth.signUp({ email, password });
         if (error) throw error;
-        setHelperMessage(authHelper, "Tjek din mail for bekræftelse.", true);
+        setHelperMessage(authHelper, "Check your email for confirmation.", true);
         return;
       }
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
       closeAuthModal();
     } catch (error) {
-      setHelperMessage(authHelper, error.message || "Kunne ikke logge ind.", true);
+      setHelperMessage(authHelper, error.message || "Could not log in.", true);
     }
   });
 }
@@ -899,7 +899,7 @@ if (authPrimary) {
 authProviderButtons.forEach((btn) => {
   btn.addEventListener("click", async () => {
     if (!supabaseClient) {
-      setHelperMessage(authHelper, "Auth ikke tilgængelig.", true);
+      setHelperMessage(authHelper, "Auth not available.", true);
       return;
     }
     const provider = btn.getAttribute("data-provider");
@@ -907,7 +907,7 @@ authProviderButtons.forEach((btn) => {
     if (provider === "email") {
       const email = authEmail?.value.trim() || "";
       if (!email) {
-        setHelperMessage(authHelper, "Indtast din email først.", true);
+        setHelperMessage(authHelper, "Enter your email first.", true);
         return;
       }
       const { error } = await supabaseClient.auth.signInWithOtp({
@@ -915,7 +915,7 @@ authProviderButtons.forEach((btn) => {
         options: { emailRedirectTo: authRedirectUrl() },
       });
       if (error) {
-        setHelperMessage(authHelper, error.message || "Kunne ikke sende mail.", true);
+        setHelperMessage(authHelper, error.message || "Could not send email.", true);
         return;
       }
       setHelperMessage(authHelper, "Magic link sendt til din email.", true);

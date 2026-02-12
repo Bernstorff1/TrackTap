@@ -34,11 +34,15 @@ const roleToggle = document.querySelector(".role-toggle");
 const brandMark = document.getElementById("brandMark");
 const roomNameEl = document.getElementById("roomName");
 const creditCount = document.getElementById("creditCount");
-const payButtons = document.querySelectorAll(".pay-btn");
 const amountRange = document.getElementById("amountRange");
 const amountValue = document.getElementById("amountValue");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
+const paymentStatus = document.getElementById("paymentStatus");
+const payNowBtn = document.getElementById("payNowBtn");
+const payNowPrice = document.getElementById("payNowPrice");
+const paymentElementMount = document.getElementById("paymentElement");
+const expressCheckoutMount = document.getElementById("expressCheckoutElement");
 const easterEggBtn = document.getElementById("easterEggBtn");
 const easterEgg = document.getElementById("easterEgg");
 const djModal = document.getElementById("djModal");
@@ -118,6 +122,15 @@ if (roomNameEl && ROOM_ID) {
 }
 
 let requests = [];
+let stripeClient = null;
+let stripePublishableKey = "";
+let stripeElements = null;
+let stripePaymentElement = null;
+let stripeExpressElement = null;
+let stripeClientSecret = "";
+let stripeIntentAmount = 0;
+let stripeReadyForAmount = false;
+let stripeBusy = false;
 
 
 
@@ -137,7 +150,7 @@ async function syncCreditsToProfile() {
     await supabaseClient.from("profiles").upsert({
       id: currentUser.id,
       credits: voteCredits,
-      display_name: currentUser.user_metadata?.full_name || currentUser.email || "Bruger",
+      display_name: currentUser.user_metadata?.full_name || currentUser.email || "User",
       updated_at: new Date().toISOString(),
     });
   } catch {
@@ -457,7 +470,7 @@ async function hydrateRequesters(ids) {
     .select("id, display_name")
     .in("id", uniqueIds);
   (data || []).forEach((row) => {
-    requesterNames.set(row.id, row.display_name || "Bruger");
+    requesterNames.set(row.id, row.display_name || "User");
   });
 }
 
@@ -477,14 +490,8 @@ async function loadCreditsForUser(user) {
       return;
     }
     const remoteCredits = Number(data?.credits ?? 0);
-    const localCredits = loadCredits();
-    if (localCredits > remoteCredits) {
-      voteCredits = localCredits;
-      await syncCreditsToProfile();
-    } else {
-      voteCredits = remoteCredits;
-      persistCredits();
-    }
+    voteCredits = remoteCredits;
+    persistCredits();
     updateCreditsDisplay();
   } catch {
     voteCredits = loadCredits();
@@ -503,23 +510,24 @@ function updateProfileIcon(user) {
     menuBtn.classList.add("is-hidden");
     return;
   }
-  const name = user.user_metadata?.full_name || user.email || "Bruger";
+  const name = user.user_metadata?.full_name || user.email || "User";
   profileBtn.textContent = (name.trim()[0] || "B").toUpperCase();
   profileBtn.classList.remove("is-hidden");
   loginBtn.classList.add("is-hidden");
   menuBtn.classList.add("is-hidden");
+  ensureStripeForAmount(selectedAmount);
 }
 
 function updateSpotifyConnectButton() {
   if (!spotifyConnectBtn) return;
-  spotifyConnectBtn.textContent = isSpotifyConnected ? "Disconnect spotify" : "Connect til Spotify";
+  spotifyConnectBtn.textContent = isSpotifyConnected ? "Disconnect Spotify" : "Connect to Spotify";
 }
 
 function notifyBoostersSchemaMissing() {
   if (boostersSchemaWarningShown || !isDj) return;
   boostersSchemaWarningShown = true;
   showInfo(
-    "Boosters-synk mangler i databasen. Kør SQL: alter table public.room_settings add column if not exists boosters_visible boolean default true;"
+    "Boosters sync is missing in the database. Run SQL: alter table public.room_settings add column if not exists boosters_visible boolean default true;"
   );
 }
 
@@ -636,7 +644,7 @@ async function checkRoomSpotifyStatus() {
     if (nextStatus === roomSpotifyStatus) return;
     roomSpotifyStatus = nextStatus;
     if (nextStatus === "restricted_device" && isDj && isSpotifyConnected) {
-      showInfo("Aktiv enhed tillader ikke auto-queue. Brug AirPlay fra telefonen og prov igen.");
+      showInfo("Active device does not allow auto-queue. Use AirPlay from your phone and try again.");
     }
   } catch {
     // ignore
@@ -647,7 +655,7 @@ async function disconnectSpotify() {
   if (!supabaseClient || !currentUser) return;
   const { error } = await supabaseClient.from("spotify_tokens").delete().eq("user_id", currentUser.id);
   if (error) {
-    showInfo("Kunne ikke afbryde Spotify. Prøv igen.");
+    showInfo("Could not disconnect Spotify. Try again.");
     return;
   }
   isSpotifyConnected = false;
@@ -657,7 +665,7 @@ async function disconnectSpotify() {
 }
 
 function openDjModal() {
-  djError.textContent = "Forkert password. Prøv igen.";
+  djError.textContent = "Wrong password. Try again.";
   djError.classList.add("is-hidden");
   djPinInput.value = "";
   djModal.classList.remove("hidden");
@@ -846,8 +854,8 @@ function renderSelectedTrackPreview() {
   selectedTrackPreview.classList.remove("is-hidden");
   selectedTrackCover.src = selectedTrack.cover || SEED_COVER_URL;
   selectedTrackCover.alt = `Cover: ${selectedTrack.title || "Track"}`;
-  selectedTrackTitle.textContent = selectedTrack.title || "Ukendt titel";
-  selectedTrackArtist.textContent = selectedTrack.artist || "Ukendt kunstner";
+  selectedTrackTitle.textContent = selectedTrack.title || "Unknown title";
+  selectedTrackArtist.textContent = selectedTrack.artist || "Unknown artist";
 }
 
 function renderSearchResults(items) {
@@ -865,7 +873,7 @@ function renderSearchResults(items) {
             <div class="search-title">${item.title}</div>
             <div class="search-artist">${item.artist || ""}</div>
           </div>
-          <span class="search-tag">Vælg</span>
+          <span class="search-tag">Choose</span>
         </li>
       `
     )
@@ -899,7 +907,7 @@ function renderLists() {
 
   queuedList.innerHTML = queued.length
     ? queued.map((item) => renderCard(item)).join("")
-    : `<div class="list-empty">Der er lige nu ikke nogen ønsker i kø. Vælg hvilken sang skal spilles som den næste.</div>`;
+    : `<div class="list-empty">Der er lige nu ikke nogen ønsker i kø. Choose hvilken sang skal spilles som den næste.</div>`;
   playedList.innerHTML = played.map((item) => renderCard(item)).join("");
 
   queuedCount.textContent = queued.length;
@@ -928,7 +936,7 @@ function renderCard(item) {
   return `
     <article class="card" data-id="${item.id}">
       <div class="card-main">
-        <div class="badge">${item.status === "queued" ? "I kø" : "Afspillet"}</div>
+        <div class="badge">${item.status === "queued" ? "In queue" : "Played"}</div>
         <div class="track-header">
           ${
             item.cover
@@ -937,25 +945,25 @@ function renderCard(item) {
           }
           <div>
             <h3>${item.title}</h3>
-            <div class="artist">${item.artist || "Ukendt kunstner"}</div>
+            <div class="artist">${item.artist || "Unknown artist"}</div>
           </div>
         </div>
         <div class="meta">
           <span class="score">${scoreLabel}</span>
           <span>${formatTimeSince(item.createdAt)}</span>
           <span>Up: ${upLabel} · Down: ${item.downvotes}</span>
-          ${requesterLabel ? `<span class="requester">Ønsket af ${requesterLabel}</span>` : ""}
+          ${requesterLabel ? `<span class="requester">Requested by ${requesterLabel}</span>` : ""}
           ${item.djPinned ? `<span class="badge dj">DJ</span>` : ""}
         </div>
         <div class="dj-actions" ${isDj ? "" : "style=\"display:none\""}>
           ${
             item.status === "queued"
-              ? `<button class="primary" data-action="play">Afspillet</button>`
-              : `<button class="ghost" data-action="unplay">Fortryd</button>`
+              ? `<button class="primary" data-action="play">Played</button>`
+              : `<button class="ghost" data-action="unplay">Undo</button>`
           }
           ${
             isDj && ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0)) === 0
-              ? `<button class="ghost" data-action="delete">Slet nummer</button>`
+              ? `<button class="ghost" data-action="delete">Delete track</button>`
               : ``
           }
         </div>
@@ -1118,7 +1126,7 @@ function closeModalPanel() {
   renderSelectedTrackPreview();
 }
 
-function showInfo(message, title = "Besked") {
+function showInfo(message, title = "Message") {
   if (!infoModal || !infoMessage || !infoTitle) return;
   infoTitle.textContent = title;
   infoMessage.textContent = message;
@@ -1164,7 +1172,7 @@ function addRequest(event) {
   const comment = document.getElementById("trackComment").value.trim();
   if (!title) {
     if (requestHelper) {
-      requestHelper.textContent = "Skriv et tracknavn først.";
+      requestHelper.textContent = "Enter a track name first.";
       requestHelper.classList.remove("is-hidden");
     }
     return;
@@ -1185,7 +1193,7 @@ function addRequest(event) {
       `${item.title}::${item.artist || ""}`.toLowerCase() === key
   );
   if (alreadyQueued) {
-    showInfo("Sangen ligger allerede i kø.");
+    showInfo("Track is already in queue.");
     return;
   }
   if (requestHelper) requestHelper.classList.add("is-hidden");
@@ -1262,23 +1270,251 @@ if (trackCommentInput) {
 
 
 function updatePayPrices() {
-  document.querySelectorAll(".pay-price").forEach((priceEl) => {
-    priceEl.textContent = `${selectedAmount} kr`;
-  });
+  if (payNowPrice) payNowPrice.textContent = `${selectedAmount} kr`;
 }
 
 function updateAmountLabel() {
   if (amountValue) amountValue.textContent = `${selectedAmount} kr`;
 }
 
-payButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    voteCredits += selectedAmount;
-    persistCredits();
-    updateCreditsDisplay();
-    renderLists();
+function setPaymentStatus(message, isError = false) {
+  if (!paymentStatus) return;
+  paymentStatus.textContent = message || "";
+  paymentStatus.classList.toggle("is-hidden", !message);
+  paymentStatus.classList.toggle("payment-error", !!(message && isError));
+  paymentStatus.classList.toggle("payment-success", !!(message && !isError));
+}
+
+function setPayBusy(isBusy, text) {
+  stripeBusy = isBusy;
+  if (!payNowBtn) return;
+  payNowBtn.disabled = isBusy;
+  if (isBusy) {
+    payNowBtn.dataset.originalText = payNowBtn.textContent || "";
+    payNowBtn.textContent = text || "Behandler betaling...";
+    return;
+  }
+  payNowBtn.textContent = "";
+  payNowBtn.append("Betal ");
+  if (payNowPrice) {
+    payNowBtn.append(payNowPrice);
+  } else {
+    payNowBtn.append(`${selectedAmount} kr`);
+  }
+}
+
+async function getAccessTokenOrThrow() {
+  if (!supabaseClient) throw new Error("Mangler login");
+  const initial = await supabaseClient.auth.getSession();
+  const initialToken = initial?.data?.session?.access_token || "";
+  if (initialToken) return initialToken;
+  const refreshed = await supabaseClient.auth.refreshSession();
+  const refreshedToken = refreshed?.data?.session?.access_token || "";
+  if (refreshedToken) return refreshedToken;
+  throw new Error("Log in again to pay.");
+}
+
+async function createPaymentIntent(amount) {
+  if (!Number.isFinite(amount) || !PAYMENT_AMOUNTS.includes(amount)) {
+    throw new Error("Invalid amount selected.");
+  }
+  const token = await getAccessTokenOrThrow();
+  const res = await fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ amount }),
   });
-});
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload?.error || payload?.message || "Could not start payment.");
+  }
+  return payload;
+}
+
+function unmountStripeElements() {
+  if (stripeExpressElement) {
+    stripeExpressElement.unmount();
+    stripeExpressElement = null;
+  }
+  if (stripePaymentElement) {
+    stripePaymentElement.unmount();
+    stripePaymentElement = null;
+  }
+  stripeElements = null;
+  stripeClientSecret = "";
+  stripeReadyForAmount = false;
+}
+
+async function refreshCreditsAfterPayment(expectedCredits) {
+  if (!supabaseClient || !currentUser) return;
+  let attempts = 0;
+  const maxAttempts = 8;
+  while (attempts < maxAttempts) {
+    attempts += 1;
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("credits")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+    const remoteCredits = Number(data?.credits ?? NaN);
+    if (Number.isFinite(remoteCredits) && remoteCredits >= voteCredits + expectedCredits) {
+      voteCredits = remoteCredits;
+      persistCredits();
+      updateCreditsDisplay();
+      renderLists();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  await loadCreditsForUser(currentUser);
+  renderLists();
+}
+
+async function confirmStripePayment() {
+  if (!stripeClient || !stripeElements || !stripeClientSecret) {
+    throw new Error("Betalingsfeltet er ikke klar endnu.");
+  }
+  const returnUrl = new URL(window.location.href);
+  returnUrl.searchParams.set("payment", "success");
+  const { error } = await stripeClient.confirmPayment({
+    elements: stripeElements,
+    clientSecret: stripeClientSecret,
+    confirmParams: {
+      return_url: returnUrl.toString(),
+    },
+    redirect: "if_required",
+  });
+  if (error) throw new Error(error.message || "Payment was not completed.");
+}
+
+async function mountStripeForAmount(amount) {
+  if (!paymentElementMount || !expressCheckoutMount) {
+    throw new Error("Betalingsfelter mangler i siden.");
+  }
+  if (!window.Stripe) {
+    throw new Error("Stripe kunne ikke loades.");
+  }
+  setPaymentStatus("Starter betaling...");
+  const payload = await createPaymentIntent(amount);
+  const publishableKey = String(payload?.publishableKey || "");
+  const clientSecret = String(payload?.clientSecret || "");
+  if (!publishableKey || !clientSecret) {
+    throw new Error("Mangler Stripe-oplysninger fra serveren.");
+  }
+
+  if (!stripeClient || stripePublishableKey !== publishableKey) {
+    stripeClient = window.Stripe(publishableKey);
+    stripePublishableKey = publishableKey;
+  }
+
+  unmountStripeElements();
+  stripeClientSecret = clientSecret;
+  stripeIntentAmount = amount;
+  stripeElements = stripeClient.elements({
+    clientSecret,
+    appearance: {
+      theme: "night",
+      variables: {
+        colorPrimary: "#00e5ff",
+        colorBackground: "#0f1526",
+        colorText: "#f4f8ff",
+        colorDanger: "#ff7b8f",
+      },
+    },
+  });
+
+  stripeExpressElement = stripeElements.create("expressCheckout", {
+    buttonType: {
+      applePay: "buy",
+      googlePay: "pay",
+    },
+    layout: {
+      maxColumns: 2,
+      maxRows: 1,
+      overflow: "never",
+    },
+  });
+
+  stripeExpressElement.on("confirm", async () => {
+    if (stripeBusy) return;
+    try {
+      setPayBusy(true, "Behandler wallet-betaling...");
+      setPaymentStatus("Processing payment...");
+      await confirmStripePayment();
+      await refreshCreditsAfterPayment(stripeIntentAmount);
+      setPaymentStatus(`Payment approved. ${stripeIntentAmount} credits added.`);
+      flashNotice(`+${stripeIntentAmount} kreditter`);
+    } catch (error) {
+      setPaymentStatus(error?.message || "Betalingen fejlede.", true);
+    } finally {
+      setPayBusy(false);
+      try {
+        await mountStripeForAmount(selectedAmount);
+      } catch {
+        // ignore remount error
+      }
+    }
+  });
+
+  stripePaymentElement = stripeElements.create("payment", {
+    layout: "tabs",
+  });
+  stripeExpressElement.mount(expressCheckoutMount);
+  stripePaymentElement.mount(paymentElementMount);
+  stripeReadyForAmount = true;
+  setPaymentStatus("");
+}
+
+async function ensureStripeForAmount(amount) {
+  if (!currentUser) return;
+  if (stripeBusy) return;
+  if (stripeReadyForAmount && stripeIntentAmount === amount) return;
+  try {
+    setPayBusy(true, "Preparing payment...");
+    await mountStripeForAmount(amount);
+  } catch (error) {
+    setPaymentStatus(error?.message || "Could not prepare payment.", true);
+  } finally {
+    setPayBusy(false);
+  }
+}
+
+async function handlePayNow() {
+  if (!currentUser) {
+    showInfo("Log in to buy credits.");
+    return;
+  }
+  if (!stripeReadyForAmount || stripeIntentAmount !== selectedAmount) {
+    await ensureStripeForAmount(selectedAmount);
+    if (!stripeReadyForAmount || stripeIntentAmount !== selectedAmount) return;
+  }
+  try {
+    setPayBusy(true, "Behandler betaling...");
+    setPaymentStatus("Processing payment...");
+    await confirmStripePayment();
+    await refreshCreditsAfterPayment(selectedAmount);
+    setPaymentStatus(`Payment approved. ${selectedAmount} credits added.`);
+    flashNotice(`+${selectedAmount} kreditter`);
+  } catch (error) {
+    setPaymentStatus(error?.message || "Betalingen fejlede.", true);
+  } finally {
+    setPayBusy(false);
+    try {
+      await mountStripeForAmount(selectedAmount);
+    } catch {
+      // ignore remount error
+    }
+  }
+}
+
+if (payNowBtn) {
+  payNowBtn.addEventListener("click", () => {
+    handlePayNow();
+  });
+}
 
 if (amountRange) {
   amountRange.addEventListener("input", () => {
@@ -1287,12 +1523,14 @@ if (amountRange) {
     selectedAmount = PAYMENT_AMOUNTS[safeIndex];
     updateAmountLabel();
     updatePayPrices();
+    ensureStripeForAmount(selectedAmount);
   });
   const initialIndex = Number(amountRange.value || "0");
   const safeInitialIndex = Number.isFinite(initialIndex) ? Math.min(2, Math.max(0, initialIndex)) : 0;
   selectedAmount = PAYMENT_AMOUNTS[safeInitialIndex];
   updateAmountLabel();
   updatePayPrices();
+  ensureStripeForAmount(selectedAmount);
 }
 
 
@@ -1483,7 +1721,7 @@ djForm.addEventListener("submit", (event) => {
   const value = djPinInput.value.trim();
   const storedPassword = barHostPassword || localStorage.getItem(HOST_PASSWORD_KEY) || "";
   if (!storedPassword) {
-    djError.textContent = "Ingen værts-password fundet. Opret bar først.";
+    djError.textContent = "No DJ password found. Create a bar first.";
     djError.classList.remove("is-hidden");
     djPinInput.select();
     return;
@@ -1493,7 +1731,7 @@ djForm.addEventListener("submit", (event) => {
     closeDjModalPanel();
     setDjMode(true);
   } else {
-    djError.textContent = "Forkert password. Prøv igen.";
+    djError.textContent = "Wrong password. Try again.";
     djError.classList.remove("is-hidden");
     djPinInput.select();
   }
@@ -1573,7 +1811,7 @@ async function startSpotifyConnect() {
     window.location.assign(payload.url);
   } catch (error) {
     const reason = error?.message ? ` (${error.message})` : "";
-    showInfo(`Kunne ikke forbinde til Spotify lige nu${reason}.`);
+    showInfo(`Could not connect to Spotify right now${reason}.`);
   }
 }
 
@@ -1593,7 +1831,7 @@ async function exportPlayedToSpotify() {
   if (!supabaseClient) return;
   const playedTracks = collectPlayedTracks();
   if (!playedTracks.length) {
-    showInfo("Ingen sange under Afspillet endnu.");
+    showInfo("Ingen sange under Played endnu.");
     return;
   }
 
@@ -1611,7 +1849,7 @@ async function exportPlayedToSpotify() {
     return;
   }
 
-  const playlistName = `${(brandNameText?.textContent || "Tapster").trim()} - Afspillet`;
+  const playlistName = `${(brandNameText?.textContent || "Tapster").trim()} - Played`;
   try {
     const res = await fetch(`${FUNCTIONS_URL}/spotify-export-played`, {
       method: "POST",
@@ -1638,7 +1876,7 @@ async function exportPlayedToSpotify() {
     }
   } catch (error) {
     const reason = error?.message ? ` (${error.message})` : "";
-    showInfo(`Kunne ikke oprette Spotify-playliste${reason}.`);
+    showInfo(`Could not create Spotify playlist${reason}.`);
   }
 }
 

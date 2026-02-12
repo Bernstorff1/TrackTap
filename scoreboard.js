@@ -28,7 +28,7 @@ function closeUserMenu() {
 function updateUserMenu(user) {
   if (!menuBtnScore || !userAvatarBtnScore) return;
   if (user) {
-    const name = user.user_metadata?.full_name || user.email || "Bruger";
+    const name = user.user_metadata?.full_name || user.email || "User";
     userAvatarBtnScore.textContent = (name.trim()[0] || "B").toUpperCase();
     userAvatarBtnScore.classList.remove("is-hidden");
     menuBtnScore.classList.add("is-hidden");
@@ -81,13 +81,13 @@ async function loadScoreboard() {
     .gte("created_at", since)
     .not("requester_id", "is", null);
   if (error) {
-    renderEmpty("Kunne ikke hente scoreboard.");
-    renderEmptyPlaylists("Kunne ikke hente scoreboard.");
+    renderEmpty("Could not fetch scoreboard.");
+    renderEmptyPlaylists("Could not fetch scoreboard.");
     return;
   }
   if (!rows || rows.length === 0) {
-    renderEmpty("Ingen data endnu.");
-    renderEmptyPlaylists("Ingen data endnu.");
+    renderEmpty("No data yet.");
+    renderEmptyPlaylists("No data yet.");
     return;
   }
 
@@ -111,7 +111,7 @@ async function loadScoreboard() {
     .select("id, display_name")
     .in("id", ids);
   const nameMap = new Map();
-  (profiles || []).forEach((row) => nameMap.set(row.id, row.display_name || "Bruger"));
+  (profiles || []).forEach((row) => nameMap.set(row.id, row.display_name || "User"));
 
   const sorted = ids
     .map((id) => ({ id, ...totals.get(id) }))
@@ -126,7 +126,7 @@ async function loadScoreboard() {
     .map(
       (item, index) => `
         <div class="playlist-item clickable">
-          <div class="playlist-name">${index + 1}. ${nameMap.get(item.id) || "Bruger"}</div>
+          <div class="playlist-name">${index + 1}. ${nameMap.get(item.id) || "User"}</div>
           <div class="playlist-meta">
             Upvotes: ${item.organic} · Boosts: ${item.boosted}
           </div>
@@ -170,7 +170,7 @@ async function loadScoreboard() {
     );
 
   if (!playlistSorted.length) {
-    renderEmptyPlaylists("Ingen data endnu.");
+    renderEmptyPlaylists("No data yet.");
     return;
   }
 
@@ -181,7 +181,7 @@ async function loadScoreboard() {
         <div class="playlist-item clickable" data-code="${item.id}">
           <div class="playlist-name">${index + 1}. ${playlistNameMap.get(item.id) || item.id}</div>
           <div class="playlist-meta">
-            Upvotes: ${item.organic} · Boosts: ${item.boosted} · Sange: ${item.songs}
+            Upvotes: ${item.organic} · Boosts: ${item.boosted} · Tracks: ${item.songs}
           </div>
         </div>
       `

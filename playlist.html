@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="da">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tapster — Musikønsker</title>
+    <title>Tapster — Music Requests</title>
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
     <link rel="stylesheet" href="playlist.css?v=9" />
   </head>
@@ -16,7 +16,7 @@
         <div class="brand-mark" id="brandMark"><img src="assets/Tapsterlogonyt.png" alt="Tapster" /></div>
         <div>
           <div class="brand-name"><span id="brandNameText">Tapster</span><input id="brandNameInput" class="brand-input is-hidden" type="text" value="Tapster" aria-label="Rediger navn" /></div>
-          <div class="brand-sub">Live musikønsker</div>
+          <div class="brand-sub">Live music requests</div>
         </div>
       </div>
       <div class="role-toggle">
@@ -37,14 +37,14 @@
       <button class="menu-item danger" type="button" data-action="dj-off">DJ mode off</button>
     </div>
     <button class="menu-btn" type="button" aria-label="Menu" id="menuBtn">☰</button>
-    <button class="btn ghost small login-btn is-hidden" type="button" id="loginBtn">Log ind</button>
-    <button class="avatar-btn is-hidden" type="button" aria-label="Profil" id="profileBtn">A</button>
+    <button class="btn ghost small login-btn is-hidden" type="button" id="loginBtn">Log in</button>
+    <button class="avatar-btn is-hidden" type="button" aria-label="Profile" id="profileBtn">A</button>
     <div class="menu-panel is-hidden" id="menuPanel">
       <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
-      <button class="menu-item" type="button" data-action="profile">Se profil</button>
+      <button class="menu-item" type="button" data-action="profile">View profile</button>
       <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
-      <button class="menu-item" type="button" data-action="rules">Regler</button>
-        <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+      <button class="menu-item" type="button" data-action="rules">Rules</button>
+        <button class="menu-item danger" type="button" data-action="logout">Log out</button>
     </div>
     </header>
 
@@ -53,29 +53,29 @@
         <div class="payment-panel collapsed" id="paymentPanel">
           <button id="paymentToggle" class="boosters-toggle" type="button">Boosters</button>
           <label class="boosters-visibility is-hidden" id="boostersVisibility">
-            <span>Synlig</span>
+            <span>Visible</span>
             <input id="boostersToggle" type="checkbox" />
           </label>
           <div class="payment-body">
             <div class="payment-copy">
-              <div class="payment-title">Køb ekstra stemmer</div>
-              <div class="payment-count"><span id="creditCount">0</span> kreditter klar</div>
-              <div class="payment-note">Sandbox · ingen rigtig betaling</div>
+              <div class="payment-title">Buy extra votes</div>
+              <div class="payment-count"><span id="creditCount">0</span> credits ready</div>
+              <div class="payment-note" id="paymentNote">Choose amount og betal sikkert med Stripe</div>
             </div>
             <div class="amount-slider">
               <div class="amount-header">
-                <span>Vælg beløb</span>
+                <span>Choose amount</span>
                 <span id="amountValue">10 kr</span>
               </div>
-              <input id="amountRange" type="range" min="0" max="2" step="1" value="0" aria-label="Beløb i kroner" />
+              <input id="amountRange" type="range" min="0" max="2" step="1" value="0" aria-label="Amount in DKK" />
             </div>
-            <div class="payment-buttons">
-              <button class="pay-btn pay-apple" data-pay="apple">
-                <span class="pay-icon"></span> Apple Pay <span class="pay-price">10 kr</span>
+            <div class="stripe-wrap">
+              <div id="expressCheckoutElement" class="stripe-express"></div>
+              <div id="paymentElement" class="stripe-payment"></div>
+              <button id="payNowBtn" class="pay-btn pay-main" type="button">
+                Betal <span id="payNowPrice" class="pay-price">10 kr</span>
               </button>
-              <button class="pay-btn pay-google" data-pay="google">
-                <span class="pay-icon">G</span> Google Pay <span class="pay-price">10 kr</span>
-              </button>
+              <div id="paymentStatus" class="payment-note is-hidden"></div>
             </div>
           </div>
         </div>
@@ -83,29 +83,29 @@
 
       <section class="tabs">
         <button class="tab active" data-tab="queued">
-          Ønsker <span id="queuedCount" class="pill">0</span>
+          Requests <span id="queuedCount" class="pill">0</span>
         </button>
         <button class="tab" data-tab="played">
-          Afspillet <span id="playedCount" class="pill">0</span>
+          Played <span id="playedCount" class="pill">0</span>
         </button>
       </section>
 
       <section class="lists">
         <div id="queuedList" class="list active" data-list="queued"></div>
         <div class="played-actions" id="playedActions">
-          <button class="btn ghost spotify-btn" type="button">Tilføj playliste til min Spotify</button>
+          <button class="btn ghost spotify-btn" type="button">Add playlist to my Spotify</button>
         </div>
         <div id="playedList" class="list" data-list="played"></div>
       </section>
     </main>
 
-    <button id="addBtn" class="fab" aria-label="Tilføj ønske">+</button>
+    <button id="addBtn" class="fab" aria-label="Add request">+</button>
 
     <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <div class="modal-header">
-          <h2>Nyt musikønske</h2>
-          <button id="closeModal" class="ghost">Luk</button>
+          <h2>New music request</h2>
+          <button id="closeModal" class="ghost">Close</button>
         </div>
         <form id="requestForm">
           <label>
@@ -113,7 +113,7 @@
             <input id="trackTitle" type="text" required placeholder="Fx 'Superstition'" />
           </label>
           <div class="autocomplete">
-            <div class="helper">Søg i Spotify og vælg track</div>
+            <div class="helper">Search Spotify and choose a track</div>
             <ul id="searchResults" class="search-results" aria-live="polite"></ul>
           </div>
           <div id="selectedTrackPreview" class="selected-track-preview is-hidden" aria-live="polite">
@@ -125,13 +125,13 @@
           </div>
           <div id="requestHelper" class="helper is-hidden"></div>
           <label>
-            Kommentar
-            <textarea id="trackComment" rows="3" maxlength="18" placeholder="Valgfrit"></textarea>
+            Comment
+            <textarea id="trackComment" rows="3" maxlength="18" placeholder="Optional"></textarea>
           </label>
           <div id="commentLimitHelper" class="helper is-hidden">Maks 18 tegn</div>
           <div class="actions">
-            <button type="button" id="cancelBtn" class="ghost">Annuller</button>
-            <button type="submit" class="primary">Send ønske</button>
+            <button type="button" id="cancelBtn" class="ghost">Cancel</button>
+            <button type="submit" class="primary">Send request</button>
           </div>
         </form>
       </div>
@@ -142,17 +142,17 @@
       <div class="modal-card">
         <div class="modal-header">
           <h2>DJ adgang</h2>
-          <button id="closeDjModal" class="ghost">Luk</button>
+          <button id="closeDjModal" class="ghost">Close</button>
         </div>
         <form id="djForm">
           <label>
-            Værts-password
+            DJ password
             <input id="djPin" type="password" required placeholder="Indtast password" />
           </label>
-          <div id="djError" class="form-error is-hidden">Forkert password. Prøv igen.</div>
+          <div id="djError" class="form-error is-hidden">Wrong password. Try again.</div>
           <div class="actions">
-            <button type="button" id="cancelDj" class="ghost">Annuller</button>
-            <button type="submit" class="primary">Lås op</button>
+            <button type="button" id="cancelDj" class="ghost">Cancel</button>
+            <button type="submit" class="primary">Unlock</button>
           </div>
         </form>
       </div>
@@ -161,15 +161,15 @@
     <div id="qrModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card qr-card">
         <div class="modal-header">
-          <h2>Del playlisten</h2>
-          <button id="closeQr" class="ghost">Luk</button>
+          <h2>Share playlist</h2>
+          <button id="closeQr" class="ghost">Close</button>
         </div>
         <div class="qr-body qr-poster">
           <div class="qr-brand">
             <img class="qr-logo" src="assets/Tapsterlogonyt.png" alt="Tapster logo" />
             <div>
               <div class="qr-title">Tapster</div>
-              <div class="qr-sub">Scan og ønsk musik live</div>
+              <div class="qr-sub">Scan and request music live</div>
             </div>
           </div>
           <div class="qr-playlist">
@@ -179,7 +179,7 @@
           <div class="qr-code-wrap">
             <img id="qrImage" class="qr-image" alt="QR kode" />
           </div>
-          <div class="qr-cta">Åbn og stem på næste nummer</div>
+          <div class="qr-cta">Open and vote for the next track</div>
           <div class="qr-link" id="qrLink"></div>
         </div>
       </div>
@@ -188,8 +188,8 @@
     <div id="infoModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <div class="modal-header">
-          <h2 id="infoTitle">Besked</h2>
-          <button id="closeInfo" class="ghost">Luk</button>
+          <h2 id="infoTitle">Message</h2>
+          <button id="closeInfo" class="ghost">Close</button>
         </div>
         <p id="infoMessage" class="helper"></p>
         <div class="actions">
@@ -204,6 +204,7 @@
       <div id="easterEgg" class="easter-egg is-hidden">Simon, Vis os dine klunker!</div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="playlist.js?v=19"></script>
+    <script src="https://js.stripe.com/v3"></script>
+    <script src="playlist.js?v=20"></script>
   </body>
 </html>

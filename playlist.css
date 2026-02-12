@@ -449,10 +449,20 @@ body::after {
   color: var(--muted);
 }
 
-.payment-buttons {
+.stripe-wrap {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stripe-express {
+  min-height: 44px;
+}
+
+.stripe-payment {
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(16, 18, 27, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pay-btn {
@@ -478,6 +488,12 @@ body::after {
   transform: translateY(-1px);
 }
 
+.pay-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
 .pay-icon {
   width: 22px;
   height: 22px;
@@ -498,16 +514,16 @@ body::after {
   border-radius: 999px;
 }
 
-.pay-apple {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-}
-
-.pay-google {
+.pay-main {
   background: linear-gradient(135deg, rgba(0, 229, 255, 0.12), rgba(16, 18, 27, 0.9));
 }
 
-.pay-mobile {
-  background: linear-gradient(135deg, rgba(255, 0, 212, 0.12), rgba(16, 18, 27, 0.9));
+.payment-error {
+  color: #ff8da0;
+}
+
+.payment-success {
+  color: #9fffd2;
 }
 
 .amount-slider {
@@ -972,7 +988,11 @@ button.ghost {
   display: grid;
   place-items: center;
   padding: 18px;
-  z-index: 4;
+  z-index: 1200;
+}
+
+#qrModal {
+  z-index: 2200;
 }
 
 .modal.hidden {
@@ -1341,8 +1361,8 @@ textarea {
   .payment-panel {
     grid-template-columns: 1fr;
   }
-  .payment-buttons {
-    grid-template-columns: 1fr;
+  .stripe-wrap {
+    gap: 8px;
   }
 
 

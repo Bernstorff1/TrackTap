@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="da">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -24,14 +24,14 @@
       </div>
       <div class="user-status">
         <button id="menuBtnScore" class="btn ghost small" type="button">☰</button>
-        <button id="userAvatarBtnScore" class="avatar-btn is-hidden" type="button" aria-label="Bruger">
+        <button id="userAvatarBtnScore" class="avatar-btn is-hidden" type="button" aria-label="User">
           A
         </button>
         <div class="menu-panel is-hidden" id="userDropdownScore">
-          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
-          <button class="menu-item" type="button" data-action="profile">Se profil</button>
-          <button class="menu-item" type="button" data-action="rules">Regler</button>
-          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+          <button class="menu-item" type="button" data-action="create-playlist">Playlists</button>
+          <button class="menu-item" type="button" data-action="profile">View profile</button>
+          <button class="menu-item" type="button" data-action="rules">Rules</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log out</button>
         </div>
       </div>
     </header>
@@ -41,7 +41,7 @@
         <div class="scoreboard-header">
           <div>
             <div class="eyebrow">Scoreboard</div>
-            <h2>Ugens topscore</h2>
+            <h2>Weekly top score</h2>
           </div>
           <div class="score-pill">Live</div>
         </div>
@@ -49,16 +49,16 @@
 
       <section class="card wide scoreboard-card">
         <div class="scoreboard-section">
-          <h3>Top brugere (7 dage)</h3>
-          <p class="playlist-meta">Flest upvotes på sange brugeren har tilføjet.</p>
+          <h3>Top users (7 days)</h3>
+          <p class="playlist-meta">Most upvotes on tracks added by the user.</p>
         </div>
         <div id="scoreboardList" class="playlist-list"></div>
       </section>
 
       <section class="card wide scoreboard-card">
         <div class="scoreboard-section">
-          <h3>Top playlister (7 dage)</h3>
-          <p class="playlist-meta">Flest upvotes på playlistens sange.</p>
+          <h3>Top playlists (7 days)</h3>
+          <p class="playlist-meta">Most upvotes on the playlist's tracks.</p>
         </div>
         <div id="scoreboardPlaylists" class="playlist-list"></div>
       </section>

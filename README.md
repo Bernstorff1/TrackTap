@@ -52,6 +52,14 @@ create table if not exists profiles (
   updated_at timestamptz default now()
 );
 
+create table if not exists credit_payments (
+  payment_intent_id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  amount_ore int not null,
+  credits int not null,
+  created_at timestamptz default now()
+);
+
 -- RLS policies (example)
 alter table playlists enable row level security;
 alter table requests enable row level security;
@@ -68,4 +76,31 @@ create policy "public delete requests" on requests for delete using (true);
 create policy "users read own profile" on profiles for select using (auth.uid() = id);
 create policy "users upsert own profile" on profiles for insert with check (auth.uid() = id);
 create policy "users update own profile" on profiles for update using (auth.uid() = id) with check (auth.uid() = id);
+
+alter table credit_payments enable row level security;
+create policy "service role manages credit payments"
+on credit_payments
+for all
+using (auth.role() = 'service_role')
+with check (auth.role() = 'service_role');
 ```
+
+## Stripe setup (Custom payment flow)
+
+1. Opret disse env vars i Supabase Functions:
+`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `TAPSTER_SERVICE_ROLE_KEY`
+
+2. Deploy functions:
+
+```bash
+supabase functions deploy stripe-create-payment-intent
+supabase functions deploy stripe-webhook
+```
+
+3. I Stripe Dashboard:
+- Brug `Custom payment flow`
+- Opret webhook mod `https://xwafqfjhbiuogfjnlzln.functions.supabase.co/stripe-webhook`
+- Lyt på event: `payment_intent.succeeded`
+
+4. Apple Pay:
+- Verificér dit domæne i Stripe (Payment Method Domains), ellers vises Apple Pay ikke stabilt.

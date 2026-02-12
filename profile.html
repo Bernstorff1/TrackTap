@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="da">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tapster · Min profil</title>
+    <title>Tapster · My profile</title>
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
     <link rel="stylesheet" href="styles.css?v=19" />
   </head>
@@ -19,7 +19,7 @@
         </div>
         <div>
           <div class="brand-name">Tapster</div>
-          <div class="brand-sub">Min profil</div>
+          <div class="brand-sub">My profile</div>
         </div>
       </div>
       <div class="user-status">
@@ -28,25 +28,25 @@
           A
         </button>
         <div class="menu-panel is-hidden" id="userDropdownProfile">
-          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
-          <button class="menu-item" type="button" data-action="profile">Se profil</button>
+          <button class="menu-item" type="button" data-action="create-playlist">Playlists</button>
+          <button class="menu-item" type="button" data-action="profile">View profile</button>
           <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
-          <button class="menu-item" type="button" data-action="rules">Regler</button>
-          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+          <button class="menu-item" type="button" data-action="rules">Rules</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log out</button>
         </div>
       </div>
     </header>
 
     <main class="container profile-page">
       <section class="card wide">
-        <h2>Din konto</h2>
-        <p id="profileName" class="lead">Indlæser...</p>
+        <h2>My account</h2>
+        <p id="profileName" class="lead">Loading...</p>
         <div class="card">
           <div class="playlist-name">Kreditter</div>
           <div id="creditsTotal" class="code-value">0</div>
         </div>
         <div class="card received-card">
-          <div class="playlist-name">Upvotes modtaget</div>
+          <div class="playlist-name">Upvotes received</div>
 
           <div class="received-section">
             <div class="received-tag">I alt</div>
@@ -76,8 +76,8 @@
           </div>
 
           <div class="received-section">
-            <div class="received-tag">Sidste 7 dage</div>
-            <div class="received-pill">Uge</div>
+            <div class="received-tag">Last 7 days</div>
+            <div class="received-pill">Week</div>
           </div>
           <div class="received-grid">
             <div class="received-stat">
@@ -105,7 +105,7 @@
       </section>
 
       <section class="card wide">
-        <h2>Mine playlister</h2>
+        <h2>My playlists</h2>
         <div id="profilePlaylists" class="playlist-list"></div>
       </section>
     </main>

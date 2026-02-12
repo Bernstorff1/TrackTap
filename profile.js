@@ -33,7 +33,7 @@ function closeUserMenu() {
 function updateUserMenu(user) {
   if (!menuBtnProfile || !userAvatarBtnProfile) return;
   if (user) {
-    const name = user.user_metadata?.full_name || user.email || "Bruger";
+    const name = user.user_metadata?.full_name || user.email || "User";
     userAvatarBtnProfile.textContent = (name.trim()[0] || "B").toUpperCase();
     userAvatarBtnProfile.classList.remove("is-hidden");
     menuBtnProfile.classList.add("is-hidden");
@@ -69,7 +69,7 @@ async function loadProfile() {
     window.location.assign("index.html?login=1");
     return;
   }
-  const name = user.user_metadata?.full_name || user.email || "Bruger";
+  const name = user.user_metadata?.full_name || user.email || "User";
   profileName.textContent = name;
   const { data: profile } = await supabaseClient
     .from("profiles")
@@ -130,7 +130,7 @@ async function loadProfile() {
     .order("created_at", { ascending: false });
 
   if (!rows || !rows.length) {
-    profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Ingen playlister endnu.</div>";
+    profilePlaylists.innerHTML = "<div class=\"playlist-meta\">No playlists yet.</div>";
     return;
   }
 
@@ -156,7 +156,7 @@ async function loadProfile() {
         <a class="playlist-item clickable" href="playlist.html?code=${encodeURIComponent(row.code)}">
           <div class="playlist-name">${title}</div>
           <div class="playlist-meta">${row.code}</div>
-          <div class="playlist-meta">Upvotes: ${stats.upvotes} · Tilføjede sange: ${stats.songs}</div>
+          <div class="playlist-meta">Upvotes: ${stats.upvotes} · Added tracks: ${stats.songs}</div>
         </a>
       `;
     })

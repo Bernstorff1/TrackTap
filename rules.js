@@ -26,7 +26,7 @@ function closeUserMenu() {
 function updateUserMenu(user) {
   if (!menuBtnRules || !userAvatarBtnRules) return;
   if (user) {
-    const name = user.user_metadata?.full_name || user.email || "Bruger";
+    const name = user.user_metadata?.full_name || user.email || "User";
     userAvatarBtnRules.textContent = (name.trim()[0] || "B").toUpperCase();
     userAvatarBtnRules.classList.remove("is-hidden");
     menuBtnRules.classList.add("is-hidden");

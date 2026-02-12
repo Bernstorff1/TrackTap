@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="da">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tapster</title>
-    <meta name="description" content="Tapster forbinder gæster og værter med musik og stemning på sekunder." />
+    <meta name="description" content="Tapster connects guests and hosts with music and atmosphere in seconds." />
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
     <link rel="stylesheet" href="styles.css?v=16" />
   </head>
@@ -20,19 +20,19 @@
         </div>
         <div>
           <div class="brand-name">Tapster</div>
-          <div class="brand-sub">Musik, stemning, fællesskab.</div>
+          <div class="brand-sub">Music, vibe, community.</div>
         </div>
       </div>
       <div class="user-status" id="userStatus">
-        <button id="loginBtn" class="btn ghost small" type="button">Log ind</button>
+        <button id="loginBtn" class="btn ghost small" type="button">Log in</button>
         <div class="user-menu is-hidden" id="userMenu">
           <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="Bruger">A</button>
           <div class="menu-panel is-hidden" id="userDropdown">
-            <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
-            <button class="menu-item" type="button" data-action="profile">Se profil</button>
+            <button class="menu-item" type="button" data-action="create-playlist">Playlists</button>
+            <button class="menu-item" type="button" data-action="profile">View profile</button>
             <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
-            <button class="menu-item" type="button" data-action="rules">Regler</button>
-            <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+            <button class="menu-item" type="button" data-action="rules">Rules</button>
+            <button class="menu-item danger" type="button" data-action="logout">Log out</button>
           </div>
         </div>
       </div>
@@ -41,29 +41,29 @@
     <main class="container">
       <section id="screen-home" class="screen active">
         <div class="hero is-hidden">
-          <h1>Velkommen til Tapster</h1>
+          <h1>Welcome to Tapster</h1>
         </div>
         <div id="guestInline" class="guest-inline active">
           <div class="card wide">
             <div class="inline-header">
-              <h2>Find din Playliste</h2>
-              <button id="guestInlineClose" class="btn ghost small" type="button">Tilbage</button>
+              <h2>Find your playlist</h2>
+              <button id="guestInlineClose" class="btn ghost small" type="button">Back</button>
             </div>
-            <p>Indtast kode for at finde playlisten.</p>
+            <p>Enter a code to find the playlist.</p>
             <form id="guestForm" class="form">
               <label class="field">
-                <span>Indtast kode</span>
-                <input id="guestCode" type="text" inputmode="text" maxlength="8" placeholder="F.eks. TAP123" />
+                <span>Enter code</span>
+                <input id="guestCode" type="text" inputmode="text" maxlength="8" placeholder="e.g. TAP123" />
               </label>
               <ul id="guestSuggestions" class="code-suggestions" aria-live="polite"></ul>
-              <div id="guestHelper" class="helper">Koden skal være 6–8 tegn.</div>
-              <button class="btn primary" type="submit">Find bar/playliste</button>
+              <div id="guestHelper" class="helper">Code must be 6-8 characters.</div>
+              <button class="btn primary" type="submit">Find bar/playlist</button>
             </form>
             <div class="guest-auth" id="guestAuth">
-              <div class="guest-auth-title">Har du ikke en kode?</div>
+              <div class="guest-auth-title">Don't have a code?</div>
               <div class="guest-auth-actions">
-                <button id="guestLoginBtn" class="btn ghost small" type="button">Log ind</button>
-                <button id="guestSignupBtn" class="btn ghost small" type="button">Opret bruger</button>
+                <button id="guestLoginBtn" class="btn ghost small" type="button">Log in</button>
+                <button id="guestSignupBtn" class="btn ghost small" type="button">Create account</button>
               </div>
             </div>
           </div>
@@ -71,27 +71,27 @@
         <div id="hostInline" class="guest-inline">
           <div class="card wide find-card">
             <div class="inline-header">
-              <h2>Find din Playliste</h2>
+              <h2>Find your playlist</h2>
             </div>
-            <p>Indtast kode for at finde playlisten.</p>
+            <p>Enter a code to find the playlist.</p>
             <form id="guestFormHost" class="form">
               <label class="field">
-                <span>Indtast kode</span>
-                <input id="guestCodeHost" type="text" inputmode="text" maxlength="8" placeholder="F.eks. TAP123" />
+                <span>Enter code</span>
+                <input id="guestCodeHost" type="text" inputmode="text" maxlength="8" placeholder="e.g. TAP123" />
               </label>
               <ul id="guestSuggestionsHost" class="code-suggestions" aria-live="polite"></ul>
-              <div id="guestHelperHost" class="helper">Koden skal være 6–8 tegn.</div>
-              <button class="btn primary" type="submit">Find bar/playliste</button>
+              <div id="guestHelperHost" class="helper">Code must be 6-8 characters.</div>
+              <button class="btn primary" type="submit">Find bar/playlist</button>
             </form>
           </div>
           <div class="card wide">
             <div class="inline-header">
-              <h2>Playlister</h2>
+              <h2>Playlists</h2>
             </div>
-            <p>Opret en ny playliste.</p>
+            <p>Create a new playlist.</p>
             <div class="tabs">
-              <button class="tab active" data-tab="host-login" type="button">Se mine playlister</button>
-              <button class="tab" data-tab="host-create" type="button">Opret ny playliste</button>
+              <button class="tab active" data-tab="host-login" type="button">See my playlists</button>
+              <button class="tab" data-tab="host-create" type="button">Create new playlist</button>
             </div>
             <div class="tab-panels">
               <div class="tab-panel active" data-panel="host-login">
@@ -104,37 +104,37 @@
               <div class="tab-panel" data-panel="host-create">
                 <form id="createForm" class="form">
                   <label class="field">
-                    <span>Playlist-navn (valgfrit)</span>
-                    <input id="playlistName" type="text" placeholder="F.eks. Late Night Grooves" />
+                    <span>Playlist name (optional)</span>
+                    <input id="playlistName" type="text" placeholder="e.g. Late Night Grooves" />
                   </label>
                   <label class="field">
-                    <span>Vælg her navn som playlisten kan findes under (6–8 tegn, valgfrit)</span>
-                    <input id="playlistCode" type="text" placeholder="F.eks. TAP123" />
+                    <span>Choose the code users can find this playlist by (6-8 characters, optional)</span>
+                    <input id="playlistCode" type="text" placeholder="e.g. TAP123" />
                   </label>
                   <label class="field">
                     <span>DJ-password *</span>
-                    <input id="hostPasswordCreate" type="password" placeholder="Vælg et password" required />
+                    <input id="hostPasswordCreate" type="password" placeholder="Choose a password" required />
                   </label>
                   <label class="field">
-                    <span>Gentag DJ-password *</span>
-                    <input id="hostPasswordConfirm" type="password" placeholder="Gentag password" required />
+                    <span>Repeat DJ password *</span>
+                    <input id="hostPasswordConfirm" type="password" placeholder="Repeat password" required />
                   </label>
-                  <div id="createHelper" class="helper">Udfyld password for at fortsætte.</div>
-                  <button id="createBtn" class="btn primary" type="submit">Opret</button>
+                  <div id="createHelper" class="helper">Enter password to continue.</div>
+                  <button id="createBtn" class="btn primary" type="submit">Create</button>
                 </form>
                 <div id="createSuccess" class="result hidden">
-                <div class="result-header">Playliste klar!</div>
-                <p>Del koden med dine gæster, og gem passwordet til DJ-adgang.</p>
+                <div class="result-header">Playlist ready!</div>
+                <p>Share the code with your guests, and save the password for DJ access.</p>
                   <div class="code-grid">
                     <div class="code-card">
-                      <div class="code-label">Kode</div>
+                      <div class="code-label">Code</div>
                       <div id="guestResultCode" class="code-value">-</div>
-                      <button class="btn ghost small copy-btn" data-copy="guest">Kopiér kode</button>
+                      <button class="btn ghost small copy-btn" data-copy="guest">Copy code</button>
                     </div>
                     <div class="code-card">
                       <div class="code-label">DJ-password</div>
                       <div id="hostResultPassword" class="code-value">-</div>
-                      <button class="btn ghost small copy-btn" data-copy="host-password">Kopiér password</button>
+                      <button class="btn ghost small copy-btn" data-copy="host-password">Copy password</button>
                     </div>
                   </div>
                 </div>
@@ -147,17 +147,17 @@
 
       <section id="screen-guest-success" class="screen">
         <div class="card wide">
-          <h2>Du er inde som gæst</h2>
-          <p>Din kode: <span id="guestCodeText" class="code-inline"></span></p>
-          <button id="guestSuccessBack" class="btn ghost" type="button">Tilbage til start</button>
+          <h2>You are in as guest</h2>
+          <p>Your code: <span id="guestCodeText" class="code-inline"></span></p>
+          <button id="guestSuccessBack" class="btn ghost" type="button">Back to start</button>
         </div>
       </section>
 
       <section id="screen-host-success" class="screen">
         <div class="card wide">
-          <h2>Du er inde som vært</h2>
-          <p>Din kode: <span id="hostCodeText" class="code-inline"></span></p>
-          <button id="hostSuccessBack" class="btn ghost" type="button">Tilbage til start</button>
+          <h2>You are in as host</h2>
+          <p>Your code: <span id="hostCodeText" class="code-inline"></span></p>
+          <button id="hostSuccessBack" class="btn ghost" type="button">Back to start</button>
         </div>
       </section>
     </main>
@@ -167,7 +167,7 @@
     <div id="authModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="authTitle">
       <div class="modal-card auth-card">
         <div class="modal-header">
-          <h2 id="authTitle">Log ind</h2>
+          <h2 id="authTitle">Log in</h2>
           <button id="closeAuth" class="ghost">Luk</button>
         </div>
           <div class="auth-body">
@@ -180,9 +180,9 @@
                 <span>Password</span>
                 <input id="authPassword" type="password" placeholder="••••••••" />
               </label>
-            <button id="authPrimary" class="btn primary auth-primary" type="button">Log ind</button>
-            <div id="authHelper" class="helper">Fejl ved login.</div>
-            <div class="auth-divider"><span>eller</span></div>
+            <button id="authPrimary" class="btn primary auth-primary" type="button">Log in</button>
+            <div id="authHelper" class="helper">Login error.</div>
+            <div class="auth-divider"><span>or</span></div>
             <div class="auth-providers">
               <button class="btn ghost auth-provider" type="button" data-provider="google">
                 <span class="auth-icon">
@@ -203,12 +203,12 @@
     <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
       <div class="modal-card confirm-card">
         <div class="modal-header">
-          <h2 id="confirmTitle">Bekræft</h2>
+          <h2 id="confirmTitle">Confirm</h2>
           <button id="closeConfirm" class="btn ghost small">Luk</button>
         </div>
         <p id="confirmMessage" class="helper"></p>
         <div class="actions">
-          <button id="confirmCancel" type="button" class="btn ghost">Annuller</button>
+          <button id="confirmCancel" type="button" class="btn ghost">Cancel</button>
           <button id="confirmOk" type="button" class="btn primary">Ja</button>
         </div>
       </div>
@@ -217,7 +217,7 @@
     <div id="infoModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
       <div class="modal-card confirm-card">
         <div class="modal-header">
-          <h2 id="infoTitle">Besked</h2>
+          <h2 id="infoTitle">Message</h2>
           <button id="closeInfo" class="btn ghost small">Luk</button>
         </div>
         <p id="infoMessage" class="helper"></p>

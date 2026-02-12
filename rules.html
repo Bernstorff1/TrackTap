@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="da">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tapster · Regler</title>
+    <title>Tapster · Rules</title>
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
     <link rel="stylesheet" href="styles.css?v=18" />
   </head>
@@ -19,34 +19,34 @@
         </div>
         <div>
           <div class="brand-name">Tapster</div>
-          <div class="brand-sub">Regler</div>
+          <div class="brand-sub">Rules</div>
         </div>
       </div>
       <div class="user-status">
         <button id="menuBtnRules" class="btn ghost small" type="button">☰</button>
-        <button id="userAvatarBtnRules" class="avatar-btn is-hidden" type="button" aria-label="Bruger">
+        <button id="userAvatarBtnRules" class="avatar-btn is-hidden" type="button" aria-label="User">
           A
         </button>
         <div class="menu-panel is-hidden" id="userDropdownRules">
-          <button class="menu-item" type="button" data-action="create-playlist">Playlister</button>
-          <button class="menu-item" type="button" data-action="profile">Se profil</button>
+          <button class="menu-item" type="button" data-action="create-playlist">Playlists</button>
+          <button class="menu-item" type="button" data-action="profile">View profile</button>
           <button class="menu-item" type="button" data-action="scoreboard">Scoreboard</button>
-          <button class="menu-item" type="button" data-action="rules">Regler</button>
-          <button class="menu-item danger" type="button" data-action="logout">Log ud</button>
+          <button class="menu-item" type="button" data-action="rules">Rules</button>
+          <button class="menu-item danger" type="button" data-action="logout">Log out</button>
         </div>
       </div>
     </header>
 
     <main class="container profile-page">
       <section class="card wide">
-        <h2>Hvordan fungerer playlister?</h2>
+        <h2>How do playlists work?</h2>
         <p class="lead">
           Tapster samler ønskesange i en fælles kø, hvor gæster stemmer og DJ’en styrer
           afspilningen. Placeringen i køen bestemmes af score.
         </p>
 
         <div class="card">
-          <div class="playlist-name">1) Gæster tilføjer sange</div>
+          <div class="playlist-name">1) Guests add tracks</div>
           <p>
             Gæster kan tilføje en sang til køen. Den nye sang starter nederst i køen og
             får en score baseret på upvotes og downvotes.
@@ -54,7 +54,7 @@
         </div>
 
         <div class="card">
-          <div class="playlist-name">2) Stemmer bestemmer rækkefølgen</div>
+          <div class="playlist-name">2) Votes determine order</div>
           <p>
             Upvotes og downvotes påvirker scoren. Ved samme score bliver den sang, der først
             nåede scoren, liggende øverst. Nye sange starter nederst.
@@ -62,7 +62,7 @@
         </div>
 
         <div class="card">
-          <div class="playlist-name">3) Boosts vs. organiske stemmer</div>
+          <div class="playlist-name">3) Boosts vs. organic votes</div>
           <p>
             Boosts er købte stemmer. Organiske stemmer er normale upvotes. Scoreboard og
             profiler viser dem separat, men begge tæller med i den samlede score.
@@ -70,7 +70,7 @@
         </div>
 
         <div class="card">
-          <div class="playlist-name">4) DJ‑valg</div>
+          <div class="playlist-name">4) DJ pick</div>
           <p>
             DJ’en kan markere en sang som DJ‑valg. Den får en høj base‑score og ligger øverst,
             men kan stadig stemmes op eller ned af gæster.
@@ -78,7 +78,7 @@
         </div>
 
         <div class="card">
-          <div class="playlist-name">5) Afspillet‑listen</div>
+          <div class="playlist-name">5) Played list</div>
           <p>
             Når en sang afspilles, flyttes den til “Afspillet”. Den kan godt komme i kø igen,
             men kun én gang ad gangen.
