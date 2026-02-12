@@ -147,7 +147,7 @@ async function upsertRoomSettings(room, partial = {}) {
   const payload = {
     room_id: room.room_id,
     owner_id: room.owner_id,
-    dj_mode: true,
+    dj_mode: Boolean(room.dj_mode),
     spotify_connected: true,
     updated_at: new Date().toISOString(),
     ...partial,
@@ -281,7 +281,6 @@ async function tick() {
   const { data: rooms } = await supabase
     .from("room_settings")
     .select("room_id, owner_id, dj_mode, spotify_connected, last_queued_request_id, last_queued_at")
-    .eq("dj_mode", true)
     .eq("spotify_connected", true);
 
   try {
