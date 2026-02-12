@@ -1315,19 +1315,39 @@ async function createPaymentIntent(amount) {
   if (!Number.isFinite(amount) || !PAYMENT_AMOUNTS.includes(amount)) {
     throw new Error("Invalid amount selected.");
   }
+  const postIntent = async (token) =>
+    fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount }),
+    });
+
   const token = await getAccessTokenOrThrow();
-  const res = await fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ amount }),
-  });
-  const payload = await res.json().catch(() => ({}));
+  let res = await postIntent(token);
+  let payload = await res.json().catch(() => ({}));
+
+  // If token was rejected server-side, force-refresh once and retry.
+  if (!res.ok && String(payload?.error || "").toLowerCase() === "unauthorized" && supabaseClient) {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    const freshToken = refreshed?.data?.session?.access_token || "";
+    if (freshToken) {
+      res = await postIntent(freshToken);
+      payload = await res.json().catch(() => ({}));
+    }
+  }
+
   if (!res.ok) {
+    if (String(payload?.error || "").toLowerCase() === "unauthorized") {
+      const next = encodeURIComponent(window.location.href);
+      window.location.assign(`index.html?login=1&next=${next}`);
+      throw new Error("Din session udløb. Log ind igen.");
+    }
     throw new Error(payload?.error || payload?.message || "Could not start payment.");
   }
+
   return payload;
 }
 
