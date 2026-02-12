@@ -1391,6 +1391,7 @@ async function startSpotifyConnect() {
       },
       body: JSON.stringify({
         accessToken: session.access_token,
+        userId: currentUser?.id || "",
         returnTo: window.location.href,
       }),
     });

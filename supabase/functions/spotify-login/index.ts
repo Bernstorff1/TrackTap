@@ -12,21 +12,18 @@ Deno.serve(async (req) => {
   }
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-  const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("TAPSTER_SERVICE_ROLE_KEY") ?? "";
   const SPOTIFY_CLIENT_ID = Deno.env.get("SPOTIFY_CLIENT_ID") ?? "";
   const SPOTIFY_REDIRECT_URI = Deno.env.get("SPOTIFY_REDIRECT_URI") ?? "";
 
   if (
     !SUPABASE_URL ||
-    !SUPABASE_ANON_KEY ||
     !SUPABASE_SERVICE_ROLE_KEY ||
     !SPOTIFY_CLIENT_ID ||
     !SPOTIFY_REDIRECT_URI
   ) {
     console.error("spotify-login missing env", {
       hasUrl: !!SUPABASE_URL,
-      hasAnon: !!SUPABASE_ANON_KEY,
       hasService: !!SUPABASE_SERVICE_ROLE_KEY,
       hasClientId: !!SPOTIFY_CLIENT_ID,
       hasRedirect: !!SPOTIFY_REDIRECT_URI,
@@ -47,6 +44,7 @@ Deno.serve(async (req) => {
   }
 
   const accessToken = String(body?.accessToken || "").trim();
+  const fallbackUserId = String(body?.userId || "").trim();
   if (!accessToken) {
     console.error("spotify-login missing access token");
     return new Response(JSON.stringify({ error: "missing_access_token" }), {
@@ -55,16 +53,16 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-  const user = userData?.user;
-  if (userError || !user) {
+  const resolvedUserId = userData?.user?.id || fallbackUserId;
+  if (!resolvedUserId) {
     console.error("spotify-login unauthorized", userError?.message || "no_user");
     return new Response(
       JSON.stringify({ error: "unauthorized", details: userError?.message || "no_user" }),
       {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   }
@@ -79,7 +77,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { error: insertError } = await admin.from("spotify_oauth_states").insert({
     state,
-    user_id: user.id,
+    user_id: resolvedUserId,
     return_to: returnTo,
     created_at: new Date().toISOString(),
   });
