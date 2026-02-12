@@ -22,6 +22,8 @@ let roomStatusPoll;
 const requestForm = document.getElementById("requestForm");
 const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
+const trackCommentInput = document.getElementById("trackComment");
+const commentLimitHelper = document.getElementById("commentLimitHelper");
 const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
 const roleToggle = document.querySelector(".role-toggle");
@@ -96,6 +98,8 @@ const STORAGE_PREFIX = ROOM_ID ? `tapster_${ROOM_ID}_` : "tapster_";
 const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
 const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
 const BOOSTERS_VIS_KEY = `${STORAGE_PREFIX}boosters_visible`;
+const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
+const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -517,6 +521,23 @@ async function syncRoomSettings(partial) {
   }
 }
 
+async function activateSpotifyForCurrentRoom() {
+  if (!supabaseClient || !currentUser || !ROOM_ID) return;
+  try {
+    await supabaseClient
+      .from("room_settings")
+      .update({
+        spotify_connected: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("owner_id", currentUser.id)
+      .neq("room_id", ROOM_ID);
+  } catch {
+    // ignore
+  }
+  await syncRoomSettings({ spotify_connected: true, spotify_status: "ok" });
+}
+
 async function loadSpotifyStatus(user) {
   if (!supabaseClient || !user) {
     isSpotifyConnected = false;
@@ -534,7 +555,13 @@ async function loadSpotifyStatus(user) {
     isSpotifyConnected = false;
   }
   updateSpotifyConnectButton();
-  await syncRoomSettings({ spotify_connected: isSpotifyConnected });
+  const pendingConnected = sessionStorage.getItem(SPOTIFY_CONNECTED_PENDING_KEY) === "true";
+  const pendingRoom = sessionStorage.getItem(SPOTIFY_CONNECT_ROOM_KEY);
+  if (isSpotifyConnected && pendingConnected && pendingRoom === ROOM_ID) {
+    await activateSpotifyForCurrentRoom();
+    sessionStorage.removeItem(SPOTIFY_CONNECTED_PENDING_KEY);
+    sessionStorage.removeItem(SPOTIFY_CONNECT_ROOM_KEY);
+  }
 }
 
 async function checkRoomSpotifyStatus() {
@@ -627,7 +654,7 @@ function setDjMode(enabled) {
     boostersVisibility.classList.toggle("is-hidden", !enabled);
   }
   applyBoostersVisibility();
-  syncRoomSettings({ dj_mode: enabled, spotify_connected: isSpotifyConnected });
+  syncRoomSettings({ dj_mode: enabled });
   if (!enabled) {
     disableBrandEdit(true);
     closeDjMenu();
@@ -1029,6 +1056,7 @@ function closeModalPanel() {
   selectedTrack = null;
   searchResults.innerHTML = "";
   if (requestHelper) requestHelper.classList.add("is-hidden");
+  if (commentLimitHelper) commentLimitHelper.classList.add("is-hidden");
 }
 
 function showInfo(message, title = "Besked") {
@@ -1157,6 +1185,21 @@ modal.addEventListener("click", (event) => {
 
 const trackTitleInput = document.getElementById("trackTitle");
 const trackArtistInput = document.getElementById("trackArtist");
+
+function updateCommentLimitHelper() {
+  if (!trackCommentInput || !commentLimitHelper) return;
+  const atLimit = trackCommentInput.value.length >= 18;
+  commentLimitHelper.classList.toggle("is-hidden", !atLimit);
+}
+
+if (trackCommentInput) {
+  trackCommentInput.addEventListener("input", () => {
+    if (trackCommentInput.value.length > 18) {
+      trackCommentInput.value = trackCommentInput.value.slice(0, 18);
+    }
+    updateCommentLimitHelper();
+  });
+}
 
 
 function updatePayPrices() {
@@ -1438,6 +1481,7 @@ async function startSpotifyConnect() {
     return;
   }
   try {
+    sessionStorage.setItem(SPOTIFY_CONNECT_ROOM_KEY, ROOM_ID);
     const fnUrl = `${FUNCTIONS_URL}/spotify-login`;
     const res = await fetch(fnUrl, {
       method: "POST",
@@ -1531,6 +1575,7 @@ if (sessionStorage.getItem(DJ_AUTH_KEY) === "true") {
 
 if (params.get("spotify") === "connected") {
   flashNotice("Spotify connected successfully", 1000);
+  sessionStorage.setItem(SPOTIFY_CONNECTED_PENDING_KEY, "true");
   const clean = new URL(window.location.href);
   clean.searchParams.delete("spotify");
   window.history.replaceState({}, "", clean.toString());
