@@ -12,7 +12,7 @@ const cancelBtn = document.getElementById("cancelBtn");
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
-const FUNCTIONS_URL = "https://xwafqfjhbiuogfjnlzln.functions.supabase.co";
+const FUNCTIONS_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co/functions/v1";
 const params = new URLSearchParams(window.location.search);
 const ROOM_ID = (params.get("code") || "").trim().toUpperCase();
 let supabaseClient;
