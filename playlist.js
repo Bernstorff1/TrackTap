@@ -1417,7 +1417,6 @@ async function mountStripeForAmount(amount) {
       applePay: "buy",
       googlePay: "pay",
     },
-    paymentMethodOrder: ["apple_pay", "google_pay"],
     layout: {
       maxColumns: 2,
       maxRows: 1,
