@@ -116,11 +116,19 @@
             <div class="helper">Søg i Spotify og vælg track</div>
             <ul id="searchResults" class="search-results" aria-live="polite"></ul>
           </div>
+          <div id="selectedTrackPreview" class="selected-track-preview is-hidden" aria-live="polite">
+            <img id="selectedTrackCover" src="" alt="" />
+            <div>
+              <div id="selectedTrackTitle" class="selected-track-title"></div>
+              <div id="selectedTrackArtist" class="selected-track-artist"></div>
+            </div>
+          </div>
           <div id="requestHelper" class="helper is-hidden"></div>
           <label>
             Kommentar
-            <textarea id="trackComment" rows="3" placeholder="Valgfrit"></textarea>
+            <textarea id="trackComment" rows="3" maxlength="18" placeholder="Valgfrit"></textarea>
           </label>
+          <div id="commentLimitHelper" class="helper is-hidden">Maks 18 tegn</div>
           <div class="actions">
             <button type="button" id="cancelBtn" class="ghost">Annuller</button>
             <button type="submit" class="primary">Send ønske</button>

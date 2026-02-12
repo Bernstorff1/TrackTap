@@ -115,7 +115,11 @@ async function loadScoreboard() {
 
   const sorted = ids
     .map((id) => ({ id, ...totals.get(id) }))
-    .sort((a, b) => b.total - a.total || b.organic - a.organic);
+    .sort(
+      (a, b) =>
+        (b.organic + b.boosted) - (a.organic + a.boosted) ||
+        b.organic - a.organic
+    );
 
   scoreboardList.innerHTML = sorted
     .slice(0, 5)
@@ -124,7 +128,7 @@ async function loadScoreboard() {
         <div class="playlist-item clickable">
           <div class="playlist-name">${index + 1}. ${nameMap.get(item.id) || "Bruger"}</div>
           <div class="playlist-meta">
-            Upvotes: ${item.total} · Organiske: ${item.organic} · Boosts: ${item.boosted}
+            Upvotes: ${item.organic} · Boosts: ${item.boosted}
           </div>
         </div>
       `
@@ -159,7 +163,11 @@ async function loadScoreboard() {
   const validPlaylistIds = playlistIds.filter((id) => playlistNameMap.has(id));
   const playlistSorted = validPlaylistIds
     .map((id) => ({ id, ...playlistTotals.get(id) }))
-    .sort((a, b) => b.total - a.total || b.organic - a.organic);
+    .sort(
+      (a, b) =>
+        (b.organic + b.boosted) - (a.organic + a.boosted) ||
+        b.organic - a.organic
+    );
 
   if (!playlistSorted.length) {
     renderEmptyPlaylists("Ingen data endnu.");
@@ -173,7 +181,7 @@ async function loadScoreboard() {
         <div class="playlist-item clickable" data-code="${item.id}">
           <div class="playlist-name">${index + 1}. ${playlistNameMap.get(item.id) || item.id}</div>
           <div class="playlist-meta">
-            Upvotes: ${item.total} · Organiske: ${item.organic} · Boosts: ${item.boosted} · Sange: ${item.songs}
+            Upvotes: ${item.organic} · Boosts: ${item.boosted} · Sange: ${item.songs}
           </div>
         </div>
       `

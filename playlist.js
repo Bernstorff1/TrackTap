@@ -24,6 +24,10 @@ const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
 const trackCommentInput = document.getElementById("trackComment");
 const commentLimitHelper = document.getElementById("commentLimitHelper");
+const selectedTrackPreview = document.getElementById("selectedTrackPreview");
+const selectedTrackCover = document.getElementById("selectedTrackCover");
+const selectedTrackTitle = document.getElementById("selectedTrackTitle");
+const selectedTrackArtist = document.getElementById("selectedTrackArtist");
 const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
 const roleToggle = document.querySelector(".role-toggle");
@@ -76,6 +80,10 @@ let barHostPassword = "";
 let currentUser = null;
 let isSpotifyConnected = false;
 let roomSpotifyStatus = "";
+let roomBoostersVisible = true;
+let canReadBoostersVisibility = true;
+let canWriteBoostersVisibility = true;
+let boostersSchemaWarningShown = false;
 const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 const requesterNames = new Map();
@@ -97,7 +105,6 @@ const defaultRequests = [
 const STORAGE_PREFIX = ROOM_ID ? `tapster_${ROOM_ID}_` : "tapster_";
 const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
 const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
-const BOOSTERS_VIS_KEY = `${STORAGE_PREFIX}boosters_visible`;
 const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 
@@ -506,16 +513,38 @@ function updateSpotifyConnectButton() {
   spotifyConnectBtn.textContent = isSpotifyConnected ? "Disconnect spotify" : "Connect til Spotify";
 }
 
+function notifyBoostersSchemaMissing() {
+  if (boostersSchemaWarningShown || !isDj) return;
+  boostersSchemaWarningShown = true;
+  showInfo(
+    "Boosters-synk mangler i databasen. Kør SQL: alter table public.room_settings add column if not exists boosters_visible boolean default true;"
+  );
+}
+
 async function syncRoomSettings(partial) {
   if (!supabaseClient || !currentUser || !ROOM_ID) return;
-  const payload = {
+  const basePayload = {
     room_id: ROOM_ID,
     owner_id: currentUser.id,
     updated_at: new Date().toISOString(),
-    ...partial,
   };
+  let payload = { ...basePayload, ...partial };
   try {
-    await supabaseClient.from("room_settings").upsert(payload, { onConflict: "room_id" });
+    const { error } = await supabaseClient
+      .from("room_settings")
+      .upsert(payload, { onConflict: "room_id" });
+    if (!error) return;
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "boosters_visible") &&
+      /boosters_visible/i.test(error.message || "") &&
+      /does not exist|schema cache/i.test(error.message || "")
+    ) {
+      canWriteBoostersVisibility = false;
+      notifyBoostersSchemaMissing();
+      payload = { ...basePayload, ...partial };
+      delete payload.boosters_visible;
+      await supabaseClient.from("room_settings").upsert(payload, { onConflict: "room_id" });
+    }
   } catch {
     // ignore
   }
@@ -567,12 +596,35 @@ async function loadSpotifyStatus(user) {
 async function checkRoomSpotifyStatus() {
   if (!supabaseClient || !ROOM_ID) return;
   try {
-    const { data, error } = await supabaseClient
+    const selectCols = canReadBoostersVisibility
+      ? "spotify_status, boosters_visible"
+      : "spotify_status";
+    let { data, error } = await supabaseClient
       .from("room_settings")
-      .select("spotify_status")
+      .select(selectCols)
       .eq("room_id", ROOM_ID)
       .maybeSingle();
+    if (
+      error &&
+      canReadBoostersVisibility &&
+      /boosters_visible/i.test(error.message || "") &&
+      /does not exist|schema cache/i.test(error.message || "")
+    ) {
+      canReadBoostersVisibility = false;
+      notifyBoostersSchemaMissing();
+      const fallback = await supabaseClient
+        .from("room_settings")
+        .select("spotify_status")
+        .eq("room_id", ROOM_ID)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) return;
+    if (typeof data?.boosters_visible === "boolean") {
+      roomBoostersVisible = data.boosters_visible;
+      applyBoostersVisibility();
+    }
     const nextStatus = (data?.spotify_status || "").trim();
     if (nextStatus === roomSpotifyStatus) return;
     roomSpotifyStatus = nextStatus;
@@ -697,19 +749,6 @@ function disableBrandEdit(save = true) {
   brandNameText.classList.remove("is-hidden");
 }
 
-function pruneLowScore(targetId) {
-  const item = requests.find((r) => r.id === targetId);
-  if (!item) return false;
-  if (item.status !== "queued") return false;
-  if (scoreOf(item) <= -3) {
-    requests = requests.filter((r) => r.id !== targetId);
-    persistRequests();
-    deleteRequestRemote(targetId);
-    return true;
-  }
-  return false;
-}
-
 function scoreOf(item) {
   if (item.djPinned) return DJ_BASE_SCORE + (item.upvotes - item.downvotes);
   return item.upvotes - item.downvotes;
@@ -787,6 +826,23 @@ async function spotifySearch(query) {
   return payload?.items || [];
 }
 
+function renderSelectedTrackPreview() {
+  if (!selectedTrackPreview || !selectedTrackCover || !selectedTrackTitle || !selectedTrackArtist) return;
+  if (!selectedTrack) {
+    selectedTrackPreview.classList.add("is-hidden");
+    selectedTrackCover.src = "";
+    selectedTrackCover.alt = "";
+    selectedTrackTitle.textContent = "";
+    selectedTrackArtist.textContent = "";
+    return;
+  }
+  selectedTrackPreview.classList.remove("is-hidden");
+  selectedTrackCover.src = selectedTrack.cover || SEED_COVER_URL;
+  selectedTrackCover.alt = `Cover: ${selectedTrack.title || "Track"}`;
+  selectedTrackTitle.textContent = selectedTrack.title || "Ukendt titel";
+  selectedTrackArtist.textContent = selectedTrack.artist || "Ukendt kunstner";
+}
+
 function renderSearchResults(items) {
   if (!items.length) {
     searchResults.innerHTML = "";
@@ -826,6 +882,7 @@ function renderSearchResults(items) {
         trackArtistInput.value = selectedTrack.artist;
       }
       searchResults.innerHTML = "";
+      renderSelectedTrackPreview();
     });
   });
 }
@@ -967,10 +1024,6 @@ function handleAction(id, action) {
       if (nextVote === -1) item.downvotes += 1;
     }
     persistVotes();
-    if (pruneLowScore(id)) {
-      renderLists();
-      return;
-    }
     syncRequest(item);
   }
 
@@ -1032,10 +1085,6 @@ function handleAction(id, action) {
       persistRequests();
       syncRequest(item);
       updateCreditsDisplay();
-      if (action.startsWith("boostDown") && pruneLowScore(id)) {
-        renderLists();
-        return;
-      }
       renderLists();
       return;
     }
@@ -1057,6 +1106,7 @@ function closeModalPanel() {
   searchResults.innerHTML = "";
   if (requestHelper) requestHelper.classList.add("is-hidden");
   if (commentLimitHelper) commentLimitHelper.classList.add("is-hidden");
+  renderSelectedTrackPreview();
 }
 
 function showInfo(message, title = "Besked") {
@@ -1360,6 +1410,7 @@ trackTitleInput.addEventListener("input", () => {
   const query = trackTitleInput.value.trim();
   if (selectedTrack && query !== selectedTrack.title) {
     selectedTrack = null;
+    renderSelectedTrackPreview();
   }
   if (query.length < 2) {
     searchResults.innerHTML = "";
@@ -1378,7 +1429,10 @@ trackTitleInput.addEventListener("input", () => {
 
 if (trackArtistInput) {
   trackArtistInput.addEventListener("input", () => {
-    if (selectedTrack) selectedTrack = null;
+    if (selectedTrack) {
+      selectedTrack = null;
+      renderSelectedTrackPreview();
+    }
   });
 }
 
@@ -1518,14 +1572,16 @@ if (spotifyPlaylistBtn) {
 
 function applyBoostersVisibility() {
   if (!paymentPanel) return;
-  const isVisible = sessionStorage.getItem(BOOSTERS_VIS_KEY) !== "false";
-  paymentPanel.classList.toggle("is-hidden", !isVisible && !isDj);
-  if (boostersToggle) boostersToggle.checked = isVisible;
+  paymentPanel.classList.toggle("is-hidden", !roomBoostersVisible && !isDj);
+  if (boostersToggle) boostersToggle.checked = roomBoostersVisible;
 }
 
 if (boostersToggle) {
   boostersToggle.addEventListener("change", () => {
-    sessionStorage.setItem(BOOSTERS_VIS_KEY, boostersToggle.checked ? "true" : "false");
+    roomBoostersVisible = !!boostersToggle.checked;
+    if (canWriteBoostersVisibility) {
+      syncRoomSettings({ boosters_visible: roomBoostersVisible });
+    }
     applyBoostersVisibility();
   });
 }

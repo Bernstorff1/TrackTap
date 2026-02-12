@@ -635,11 +635,10 @@ createForm.addEventListener("submit", async (event) => {
     const result = await createBar({ playlistName, hostPassword: password, desiredCode });
     guestResultCode.textContent = result.guestCode;
     hostResultPassword.textContent = result.hostPassword;
-    createSuccess.classList.remove("hidden");
-    if (hostInline) hostInline.classList.add("expanded");
     createForm.reset();
     localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPassword);
     renderMyPlaylists();
+    window.location.assign(`playlist.html?code=${encodeURIComponent(result.guestCode)}`);
   } catch (error) {
     const message =
       error.message === "auth_required"
