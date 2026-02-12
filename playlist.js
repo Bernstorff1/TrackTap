@@ -18,6 +18,7 @@ const ROOM_ID = (params.get("code") || "").trim().toUpperCase();
 let supabaseClient;
 let useRemote = true;
 let remotePoll;
+let roomStatusPoll;
 const requestForm = document.getElementById("requestForm");
 const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
@@ -72,6 +73,7 @@ let selectedAmount = 10;
 let barHostPassword = "";
 let currentUser = null;
 let isSpotifyConnected = false;
+let roomSpotifyStatus = "";
 const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 const requesterNames = new Map();
@@ -396,10 +398,14 @@ async function initSupabase() {
     });
     await fetchRequestsRemote();
     await fetchBarRemote();
+    await checkRoomSpotifyStatus();
     await subscribeRequests();
     await subscribeBar();
     if (!remotePoll) {
       remotePoll = setInterval(fetchRequestsRemote, 60000);
+    }
+    if (!roomStatusPoll) {
+      roomStatusPoll = setInterval(checkRoomSpotifyStatus, 10000);
     }
   } catch {
     useRemote = false;
@@ -529,6 +535,26 @@ async function loadSpotifyStatus(user) {
   }
   updateSpotifyConnectButton();
   await syncRoomSettings({ spotify_connected: isSpotifyConnected });
+}
+
+async function checkRoomSpotifyStatus() {
+  if (!supabaseClient || !ROOM_ID) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from("room_settings")
+      .select("spotify_status")
+      .eq("room_id", ROOM_ID)
+      .maybeSingle();
+    if (error) return;
+    const nextStatus = (data?.spotify_status || "").trim();
+    if (nextStatus === roomSpotifyStatus) return;
+    roomSpotifyStatus = nextStatus;
+    if (nextStatus === "restricted_device" && isDj && isSpotifyConnected) {
+      showInfo("Aktiv enhed tillader ikke auto-queue. Brug AirPlay fra telefonen og prov igen.");
+    }
+  } catch {
+    // ignore
+  }
 }
 
 async function disconnectSpotify() {
@@ -820,13 +846,6 @@ function renderCard(item) {
           ${requesterLabel ? `<span class="requester">Ønsket af ${requesterLabel}</span>` : ""}
           ${item.djPinned ? `<span class="badge dj">DJ</span>` : ""}
         </div>
-        ${
-          item.spotifyWebUrl
-            ? `<div class="spotify-row">
-                <button class="spotify-link" type="button" data-action="spotify" data-app="${item.spotifyAppUrl}" data-web="${item.spotifyWebUrl}">Afspil i Spotify</button>
-              </div>`
-            : ""
-        }
         <div class="dj-actions" ${isDj ? "" : "style=\"display:none\""}>
           ${
             item.status === "queued"

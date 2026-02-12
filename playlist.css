@@ -891,29 +891,6 @@ body::after {
   gap: 6px;
 }
 
-.spotify-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #b5ffe9;
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(87, 242, 193, 0.35);
-  background: rgba(87, 242, 193, 0.08);
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.spotify-row {
-  margin-top: 10px;
-}
-
-.spotify-link:hover {
-  border-color: rgba(87, 242, 193, 0.7);
-}
-
 .badge.dj {
   background: rgba(255, 0, 212, 0.18);
   color: #ffd0f1;
