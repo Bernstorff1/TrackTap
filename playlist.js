@@ -128,6 +128,7 @@ let stripeClientSecret = "";
 let stripeIntentAmount = 0;
 let stripeReadyForAmount = false;
 let stripeBusy = false;
+let stripeWalletReadyTimeout = null;
 
 
 
@@ -1354,6 +1355,10 @@ async function createPaymentIntent(amount) {
 }
 
 function unmountStripeElements() {
+  if (stripeWalletReadyTimeout) {
+    clearTimeout(stripeWalletReadyTimeout);
+    stripeWalletReadyTimeout = null;
+  }
   if (stripeExpressElement) {
     stripeExpressElement.unmount();
     stripeExpressElement = null;
@@ -1454,7 +1459,17 @@ async function mountStripeForAmount(amount) {
     },
   });
 
+  stripeWalletReadyTimeout = setTimeout(() => {
+    setPaymentDebug(
+      "Apple Pay/Google Pay kunne ikke klargoeres i tide. Proev at reloade siden i Safari."
+    );
+  }, 7000);
+
   stripeExpressElement.on("ready", (event) => {
+    if (stripeWalletReadyTimeout) {
+      clearTimeout(stripeWalletReadyTimeout);
+      stripeWalletReadyTimeout = null;
+    }
     const methods = event?.availablePaymentMethods || null;
     if (!methods) {
       setPaymentDebug(
@@ -1481,6 +1496,10 @@ async function mountStripeForAmount(amount) {
   });
 
   stripeExpressElement.on("loaderror", (event) => {
+    if (stripeWalletReadyTimeout) {
+      clearTimeout(stripeWalletReadyTimeout);
+      stripeWalletReadyTimeout = null;
+    }
     const code = event?.error?.code || "unknown";
     const message = event?.error?.message || "";
     setPaymentDebug(
@@ -1522,7 +1541,9 @@ async function ensureStripeForAmount(amount) {
     setPayBusy(true, "Preparing payment...");
     await mountStripeForAmount(amount);
   } catch (error) {
-    setPaymentStatus(error?.message || "Could not prepare payment.", true);
+    const message = error?.message || "Could not prepare payment.";
+    setPaymentStatus(message, true);
+    setPaymentDebug(`Betaling kunne ikke startes: ${message}`);
   } finally {
     setPayBusy(false);
   }
