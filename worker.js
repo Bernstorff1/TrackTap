@@ -8,6 +8,10 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const POLL_MS = 5000;
 const NEAR_END_MS = 10000;
 const DEDUPE_WINDOW_MS = 60000;
+const TRACK_END_COOLDOWN_MS = 30000;
+const roomTrackLock = new Map();
+const processingRooms = new Set();
+let tickRunning = false;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
   console.error("Missing env vars. Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET");
@@ -18,11 +22,31 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 let appToken = null;
 let appTokenExpiresAt = 0;
+let canWriteSpotifyStatus = true;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, options = {}, retries = 2, waitMs = 350) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await sleep(waitMs * (attempt + 1));
+      }
+    }
+  }
+  throw lastError || new Error("fetch_failed");
+}
 
 async function getAppToken() {
   if (appToken && Date.now() < appTokenExpiresAt - 30000) return appToken;
   const basic = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
-  const res = await fetch("https://accounts.spotify.com/api/token", {
+  const res = await fetchWithRetry("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -43,7 +67,7 @@ async function refreshUserToken(row) {
     return row.access_token;
   }
   const basic = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
-  const res = await fetch("https://accounts.spotify.com/api/token", {
+  const res = await fetchWithRetry("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -98,7 +122,7 @@ async function searchSpotifyTrack(title, artist) {
   url.searchParams.set("type", "track");
   url.searchParams.set("limit", "1");
   url.searchParams.set("q", q);
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetchWithRetry(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) return "";
   const data = await res.json();
   const item = data?.tracks?.items?.[0];
@@ -108,7 +132,7 @@ async function searchSpotifyTrack(title, artist) {
 async function queueTrack(accessToken, uri) {
   const url = new URL("https://api.spotify.com/v1/me/player/queue");
   url.searchParams.set("uri", uri);
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -119,8 +143,40 @@ async function queueTrack(accessToken, uri) {
   };
 }
 
+async function upsertRoomSettings(room, partial = {}) {
+  const payload = {
+    room_id: room.room_id,
+    owner_id: room.owner_id,
+    dj_mode: true,
+    spotify_connected: true,
+    updated_at: new Date().toISOString(),
+    ...partial,
+  };
+
+  if (!canWriteSpotifyStatus && Object.prototype.hasOwnProperty.call(payload, "spotify_status")) {
+    delete payload.spotify_status;
+  }
+
+  const { error } = await supabase.from("room_settings").upsert(payload, { onConflict: "room_id" });
+  if (!error) return;
+
+  // Backward compatibility if spotify_status column has not been created yet.
+  if (
+    Object.prototype.hasOwnProperty.call(payload, "spotify_status") &&
+    /spotify_status/.test(error.message || "") &&
+    /does not exist/i.test(error.message || "")
+  ) {
+    canWriteSpotifyStatus = false;
+    delete payload.spotify_status;
+    await supabase.from("room_settings").upsert(payload, { onConflict: "room_id" });
+    return;
+  }
+
+  throw error;
+}
+
 async function getCurrentlyPlaying(accessToken) {
-  const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+  const res = await fetchWithRetry("https://api.spotify.com/v1/me/player/currently-playing", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (res.status === 204) return { state: "no_content", data: null };
@@ -155,6 +211,19 @@ async function processRoom(room) {
 
   const remaining = (playing.item?.duration_ms || 0) - (playing.progress_ms || 0);
   if (remaining > NEAR_END_MS) return;
+  const currentTrackId = playing.item?.id || "";
+
+  // Hard cooldown: never queue multiple tracks within the same track-end window.
+  const now = Date.now();
+  const lock = roomTrackLock.get(room.room_id);
+  if (lock?.cooldownUntil && now < lock.cooldownUntil) {
+    return;
+  }
+
+  // Allow only one queue action while the same Spotify track is ending.
+  if (currentTrackId && lock && lock.trackId === currentTrackId && lock.queuedForTrack) {
+    return;
+  }
 
   const { data: queued } = await supabase
     .from("requests")
@@ -180,39 +249,56 @@ async function processRoom(room) {
   const queuedResult = await queueTrack(accessToken, uri);
   if (!queuedResult.ok) {
     console.error("Queue track failed", room.room_id, queuedResult.status, queuedResult.text);
+    if (queuedResult.status === 403 && /Restricted device/i.test(queuedResult.text || "")) {
+      await upsertRoomSettings(room, { spotify_status: "restricted_device" });
+    } else {
+      await upsertRoomSettings(room, { spotify_status: "queue_failed" });
+    }
     return;
   }
+
+  roomTrackLock.set(room.room_id, {
+    trackId: currentTrackId || lock?.trackId || "",
+    queuedForTrack: true,
+    cooldownUntil: now + Math.max(remaining + 15000, TRACK_END_COOLDOWN_MS),
+  });
 
   await supabase.from("requests").update({
     status: "played",
     played_at: new Date().toISOString(),
   }).eq("id", next.id);
 
-  await supabase.from("room_settings").upsert({
-    room_id: room.room_id,
-    owner_id: room.owner_id,
-    dj_mode: true,
-    spotify_connected: true,
+  await upsertRoomSettings(room, {
     last_queued_request_id: next.id,
     last_queued_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "room_id" });
+    spotify_status: "ok",
+  });
 }
 
 async function tick() {
+  if (tickRunning) return;
+  tickRunning = true;
   const { data: rooms } = await supabase
     .from("room_settings")
     .select("room_id, owner_id, dj_mode, spotify_connected, last_queued_request_id, last_queued_at")
     .eq("dj_mode", true)
     .eq("spotify_connected", true);
 
-  if (!rooms || rooms.length === 0) return;
-  for (const room of rooms) {
-    try {
-      await processRoom(room);
-    } catch (err) {
-      console.error("Room error", room.room_id, err?.message || err);
+  try {
+    if (!rooms || rooms.length === 0) return;
+    for (const room of rooms) {
+      if (processingRooms.has(room.room_id)) continue;
+      processingRooms.add(room.room_id);
+      try {
+        await processRoom(room);
+      } catch (err) {
+        console.error("Room error", room.room_id, err?.message || err);
+      } finally {
+        processingRooms.delete(room.room_id);
+      }
     }
+  } finally {
+    tickRunning = false;
   }
 }
 
