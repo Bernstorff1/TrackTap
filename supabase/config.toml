@@ -1,7 +1,7 @@
 
 [functions.spotify-login]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/spotify-login/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -12,7 +12,7 @@ entrypoint = "./functions/spotify-login/index.ts"
 
 [functions.spotify-callback]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/spotify-callback/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -23,7 +23,7 @@ entrypoint = "./functions/spotify-callback/index.ts"
 
 [functions.spotify-search]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/spotify-search/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

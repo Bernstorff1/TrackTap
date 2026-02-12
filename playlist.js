@@ -1381,14 +1381,17 @@ async function startSpotifyConnect() {
     return;
   }
   try {
-    const fnUrl = `${FUNCTIONS_URL}/spotify-login?returnTo=${encodeURIComponent(
-      window.location.href
-    )}`;
+    const fnUrl = `${FUNCTIONS_URL}/spotify-login`;
     const res = await fetch(fnUrl, {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
         apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        returnTo: window.location.href,
+      }),
     });
     let payload = null;
     try {
