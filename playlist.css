@@ -704,7 +704,7 @@ body::after {
 }
 
 .played-actions {
-  margin-top: 14px;
+  margin: 0 0 14px;
   display: flex;
   justify-content: center;
 }
@@ -889,6 +889,15 @@ body::after {
   color: var(--muted);
   display: flex;
   gap: 6px;
+}
+
+.side-comment {
+  max-width: 130px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #d4d6df;
+  text-align: right;
+  word-break: break-word;
 }
 
 .badge.dj {
@@ -1268,6 +1277,11 @@ textarea {
   .counts {
     gap: 10px;
     font-size: 12px;
+  }
+
+  .side-comment {
+    max-width: 120px;
+    font-size: 11px;
   }
 
   .fab {

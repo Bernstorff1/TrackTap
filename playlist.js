@@ -699,6 +699,13 @@ function formatTimeSince(ts) {
   return `${days} d siden`;
 }
 
+function truncateComment(text, max = 18) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}...`;
+}
+
 function sortQueued(a, b) {
   if (!!a.djPinned !== !!b.djPinned) return b.djPinned ? 1 : -1;
   const scoreDiff = scoreOf(b) - scoreOf(a);
@@ -709,7 +716,9 @@ function sortQueued(a, b) {
 }
 
 function sortPlayed(a, b) {
-  return (b.playedAt || 0) - (a.playedAt || 0);
+  const playedDiff = (b.playedAt || 0) - (a.playedAt || 0);
+  if (playedDiff !== 0) return playedDiff;
+  return (b.createdAt || 0) - (a.createdAt || 0);
 }
 
 
@@ -838,7 +847,6 @@ function renderCard(item) {
             <div class="artist">${item.artist || "Ukendt kunstner"}</div>
           </div>
         </div>
-        ${item.comment ? `<div class="comment">${item.comment}</div>` : ""}
         <div class="meta">
           <span class="score">${scoreLabel}</span>
           <span>${formatTimeSince(item.createdAt)}</span>
@@ -898,6 +906,7 @@ function renderCard(item) {
           <span>▲ ${upLabel}</span>
           <span>▼ ${item.downvotes}</span>
         </div>
+        ${item.comment ? `<div class="side-comment">${truncateComment(item.comment, 18)}</div>` : ""}
       </div>
     </article>
   `;

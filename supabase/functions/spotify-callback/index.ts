@@ -70,5 +70,13 @@ Deno.serve(async (req) => {
   await admin.from("spotify_oauth_states").delete().eq("state", state);
 
   const returnTo = stateRow.return_to || "https://tapsterbox.dk/playlist.html";
-  return Response.redirect(returnTo, 302);
+  let target = returnTo;
+  try {
+    const targetUrl = new URL(returnTo);
+    targetUrl.searchParams.set("spotify", "connected");
+    target = targetUrl.toString();
+  } catch {
+    // keep original returnTo if URL parsing fails
+  }
+  return Response.redirect(target, 302);
 });

@@ -154,6 +154,7 @@ function attachCodeSuggestions(inputEl, listEl) {
       const items = await fetchCodeSuggestions(value);
       renderSuggestions(listEl, items, (code) => {
         inputEl.value = code;
+        window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
       });
     }, 200);
   });
