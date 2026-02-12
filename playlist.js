@@ -108,6 +108,7 @@ const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
 const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
+const PAYMENT_AMOUNTS = [10, 25, 50];
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -1281,13 +1282,15 @@ payButtons.forEach((btn) => {
 
 if (amountRange) {
   amountRange.addEventListener("input", () => {
-    const amount = Number(amountRange.value || "0");
-    selectedAmount = Number.isFinite(amount) ? amount : 0;
+    const index = Number(amountRange.value || "0");
+    const safeIndex = Number.isFinite(index) ? Math.min(2, Math.max(0, index)) : 0;
+    selectedAmount = PAYMENT_AMOUNTS[safeIndex];
     updateAmountLabel();
     updatePayPrices();
   });
-  const initialAmount = Number(amountRange.value || "10");
-  selectedAmount = Number.isFinite(initialAmount) ? initialAmount : 10;
+  const initialIndex = Number(amountRange.value || "0");
+  const safeInitialIndex = Number.isFinite(initialIndex) ? Math.min(2, Math.max(0, initialIndex)) : 0;
+  selectedAmount = PAYMENT_AMOUNTS[safeInitialIndex];
   updateAmountLabel();
   updatePayPrices();
 }
