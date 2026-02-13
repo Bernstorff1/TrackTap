@@ -13,11 +13,17 @@ type InputTrack = {
   webUrl?: string;
 };
 
+function retryAfterSeconds(res: Response): number {
+  const raw = res.headers.get("retry-after");
+  const value = Number(raw || "");
+  return Number.isFinite(value) && value > 0 ? Math.ceil(value) : 30;
+}
+
 function parseTrackUri(track: InputTrack): string {
   const uri = String(track?.uri || "").trim();
   if (uri.startsWith("spotify:track:")) return uri;
   const web = String(track?.webUrl || "").trim();
-  const m = web.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
+  const m = web.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]+)/);
   return m ? `spotify:track:${m[1]}` : "";
 }
 
@@ -48,19 +54,31 @@ async function refreshTokenFromRefreshToken(
   return { accessToken: nextAccess, refreshToken: nextRefresh };
 }
 
-async function searchSpotifyTrackUri(appToken: string, title: string, artist: string): Promise<string> {
-  const query = `${title || ""} ${artist || ""}`.trim();
-  if (!query) return "";
-  const url = new URL("https://api.spotify.com/v1/search");
-  url.searchParams.set("type", "track");
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("q", query);
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${appToken}` },
-  });
-  if (!res.ok) return "";
-  const data = await res.json();
-  return String(data?.tracks?.items?.[0]?.uri || "");
+async function searchSpotifyTrackUri(tokens: string[], title: string, artist: string): Promise<string> {
+  const titleSafe = String(title || "").trim();
+  const artistSafe = String(artist || "").trim();
+  const queries = [`${titleSafe} ${artistSafe}`.trim(), titleSafe].filter(Boolean);
+  if (!queries.length) return "";
+
+  for (const token of tokens.filter(Boolean)) {
+    for (const query of queries) {
+      const url = new URL("https://api.spotify.com/v1/search");
+      url.searchParams.set("type", "track");
+      url.searchParams.set("limit", "5");
+      url.searchParams.set("q", query);
+      url.searchParams.set("market", "from_token");
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 429) continue;
+      if (!res.ok) continue;
+      const data = await res.json();
+      const items = Array.isArray(data?.tracks?.items) ? data.tracks.items : [];
+      const firstUri = String(items[0]?.uri || "");
+      if (firstUri.startsWith("spotify:track:")) return firstUri;
+    }
+  }
+  return "";
 }
 
 Deno.serve(async (req) => {
@@ -185,6 +203,15 @@ Deno.serve(async (req) => {
     }),
   });
   if (!createRes.ok) {
+    if (createRes.status === 429) {
+      return new Response(
+        JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(createRes) }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
     const details = await createRes.text();
     return new Response(JSON.stringify({ error: "create_playlist_failed", details }), {
       status: 502,
@@ -194,6 +221,7 @@ Deno.serve(async (req) => {
   const playlist = await createRes.json();
   const playlistId = String(playlist?.id || "");
   const playlistUrl = String(playlist?.external_urls?.spotify || "");
+  const playlistUri = String(playlist?.uri || "");
   if (!playlistId) {
     return new Response(JSON.stringify({ error: "missing_playlist_id" }), {
       status: 502,
@@ -206,7 +234,11 @@ Deno.serve(async (req) => {
   for (const track of tracks) {
     let uri = parseTrackUri(track);
     if (!uri) {
-      uri = await searchSpotifyTrackUri(appToken, String(track?.title || ""), String(track?.artist || ""));
+      uri = await searchSpotifyTrackUri(
+        [userSpotifyAccess, appToken],
+        String(track?.title || ""),
+        String(track?.artist || "")
+      );
     }
     if (!uri || uriSet.has(uri)) continue;
     uriSet.add(uri);
@@ -226,6 +258,15 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ uris: chunk }),
     });
     if (!addRes.ok) {
+      if (addRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(addRes) }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
       // Some tracks can be blocked by region/rights even if playlist creation succeeds.
       // Fall back to per-track insert so we can skip forbidden tracks instead of failing all.
       if (addRes.status === 403) {
@@ -244,6 +285,15 @@ Deno.serve(async (req) => {
           if (singleRes.ok) {
             addedCount += 1;
             continue;
+          }
+          if (singleRes.status === 429) {
+            return new Response(
+              JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(singleRes) }),
+              {
+                status: 429,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
           }
           if (singleRes.status === 403 || singleRes.status === 404) {
             skippedCount += 1;
@@ -270,6 +320,7 @@ Deno.serve(async (req) => {
     JSON.stringify({
       ok: true,
       playlistUrl,
+      playlistUri,
       added: addedCount,
       skipped: skippedCount,
       playlistName,

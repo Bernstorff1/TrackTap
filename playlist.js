@@ -133,6 +133,7 @@ let stripeBusy = false;
 let stripeWalletReadyTimeout = null;
 let lastFunctionsHealthCheckAt = 0;
 let playedSortMode = "latest";
+let spotifyExportBusy = false;
 
 
 
@@ -848,7 +849,7 @@ function openSpotify(appUrl, webUrl) {
   }
   setTimeout(() => {
     if (Date.now() - start < 1200) {
-      window.open(webUrl, "_blank", "noopener");
+      window.location.assign(webUrl);
     }
   }, 800);
 }
@@ -2063,7 +2064,7 @@ function collectPlayedTracks() {
     }));
 }
 
-async function exportPlayedToSpotify(popupWindow = null) {
+async function exportPlayedToSpotify() {
   if (!supabaseClient) return;
   const playedTracks = collectPlayedTracks();
   if (!playedTracks.length) {
@@ -2103,36 +2104,53 @@ async function exportPlayedToSpotify(popupWindow = null) {
     });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok || !payload?.ok) {
+      if (payload?.error === "rate_limited") {
+        const retryAfter = Number(payload?.retryAfter || 30);
+        throw new Error(`Spotify is rate-limiting requests. Try again in ~${retryAfter}s.`);
+      }
       const reason = payload?.details || payload?.error || `http_${res.status}`;
       throw new Error(String(reason));
     }
-    flashNotice("Playlist added to Spotify", 1300);
-    if (payload.playlistUrl) {
-      if (popupWindow && !popupWindow.closed) {
-        popupWindow.location.href = payload.playlistUrl;
-      } else {
-        window.open(payload.playlistUrl, "_blank", "noopener");
-      }
-    } else if (popupWindow && !popupWindow.closed) {
-      popupWindow.close();
+    const added = Number(payload?.added ?? 0);
+    const skipped = Number(payload?.skipped ?? 0);
+    if (added > 0) {
+      flashNotice(
+        skipped > 0 ? `Playlist added (${added} tracks, ${skipped} skipped)` : "Playlist added to Spotify",
+        1400
+      );
+    } else {
+      showInfo("Playlist was created, but no tracks could be added on Spotify.");
+    }
+    const playlistUrl = String(payload?.playlistUrl || "");
+    const playlistUri = String(payload?.playlistUri || "");
+    if (playlistUri && playlistUrl) {
+      openSpotify(playlistUri, playlistUrl);
+    } else if (playlistUrl) {
+      window.open(playlistUrl, "_blank", "noopener");
     }
   } catch (error) {
-    if (popupWindow && !popupWindow.closed) {
-      popupWindow.close();
-    }
     const reason = error?.message ? ` (${error.message})` : "";
     showInfo(`Could not create Spotify playlist${reason}.`);
   }
 }
 
 async function handleSpotifyPlaylistButton() {
-  let popupWindow = null;
-  try {
-    popupWindow = window.open("about:blank", "_blank", "noopener");
-  } catch {
-    popupWindow = null;
+  if (spotifyExportBusy) return;
+  spotifyExportBusy = true;
+  if (spotifyPlaylistBtn) {
+    spotifyPlaylistBtn.disabled = true;
+    spotifyPlaylistBtn.dataset.label = spotifyPlaylistBtn.dataset.label || spotifyPlaylistBtn.textContent || "";
+    spotifyPlaylistBtn.textContent = "Exporting...";
   }
-  await exportPlayedToSpotify(popupWindow);
+  try {
+    await exportPlayedToSpotify();
+  } finally {
+    spotifyExportBusy = false;
+    if (spotifyPlaylistBtn) {
+      spotifyPlaylistBtn.disabled = false;
+      spotifyPlaylistBtn.textContent = spotifyPlaylistBtn.dataset.label || "Add to Spotify";
+    }
+  }
 }
 
 if (spotifyPlaylistBtn) {
