@@ -513,7 +513,7 @@ function updateProfileIcon(user) {
   profileBtn.classList.remove("is-hidden");
   loginBtn.classList.add("is-hidden");
   menuBtn.classList.add("is-hidden");
-  ensureStripeForAmount(selectedAmount);
+  if (isPaymentPanelOpen()) ensureStripeForAmount(selectedAmount);
 }
 
 function updateSpotifyConnectButton() {
@@ -1293,6 +1293,13 @@ function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
 }
 
+function isPaymentPanelOpen() {
+  if (!paymentPanel) return false;
+  if (paymentPanel.classList.contains("collapsed")) return false;
+  if (paymentPanel.classList.contains("is-hidden")) return false;
+  return true;
+}
+
 async function getAccessTokenOrThrow() {
   if (!supabaseClient) throw new Error("Missing login");
   const nowSec = Math.floor(Date.now() / 1000);
@@ -1549,6 +1556,7 @@ async function mountStripeForAmount(amount) {
 
 async function ensureStripeForAmount(amount) {
   if (!currentUser) return;
+  if (!isPaymentPanelOpen()) return;
   if (stripeBusy) return;
   if (stripeReadyForAmount && stripeIntentAmount === amount) return;
   try {
@@ -1570,14 +1578,13 @@ if (amountRange) {
     selectedAmount = PAYMENT_AMOUNTS[safeIndex];
     updateAmountLabel();
     updatePayPrices();
-    ensureStripeForAmount(selectedAmount);
+    if (isPaymentPanelOpen()) ensureStripeForAmount(selectedAmount);
   });
   const initialIndex = Number(amountRange.value || "0");
   const safeInitialIndex = Number.isFinite(initialIndex) ? Math.min(2, Math.max(0, initialIndex)) : 0;
   selectedAmount = PAYMENT_AMOUNTS[safeInitialIndex];
   updateAmountLabel();
   updatePayPrices();
-  ensureStripeForAmount(selectedAmount);
 }
 
 
@@ -1592,6 +1599,13 @@ document.addEventListener("click", (event) => {
 
 paymentToggle.addEventListener("click", () => {
   paymentPanel.classList.toggle("collapsed");
+  if (isPaymentPanelOpen()) {
+    ensureStripeForAmount(selectedAmount);
+  } else {
+    setPaymentStatus("");
+    setPaymentDebug("");
+    unmountStripeElements();
+  }
 });
 
 if (menuPanel) {
