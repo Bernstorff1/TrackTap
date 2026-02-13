@@ -2126,7 +2126,7 @@ async function exportPlayedToSpotify() {
     if (playlistUri && playlistUrl) {
       openSpotify(playlistUri, playlistUrl);
     } else if (playlistUrl) {
-      window.open(playlistUrl, "_blank", "noopener");
+      window.location.assign(playlistUrl);
     }
   } catch (error) {
     const reason = error?.message ? ` (${error.message})` : "";
