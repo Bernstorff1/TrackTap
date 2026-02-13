@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tapster — Music Requests</title>
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
-    <link rel="stylesheet" href="playlist.css?v=12" />
+    <link rel="stylesheet" href="playlist.css?v=13" />
   </head>
   <body>
     <div class="bg-orb orb-1" aria-hidden="true"></div>
@@ -69,10 +69,12 @@
               <input id="amountRange" type="range" min="0" max="2" step="1" value="0" aria-label="Amount in DKK" />
             </div>
             <div class="stripe-wrap">
-              <div id="expressCheckoutElement" class="stripe-express"></div>
-              <div id="paymentLoading" class="payment-loading is-hidden" aria-live="polite">
-                <span class="payment-spinner" aria-hidden="true"></span>
-                <span id="paymentLoadingText">Preparing payment options...</span>
+              <div class="stripe-express-wrap">
+                <div id="expressCheckoutElement" class="stripe-express"></div>
+                <div id="paymentLoading" class="payment-loading is-hidden" aria-live="polite" aria-atomic="true">
+                  <span class="payment-spinner" aria-hidden="true"></span>
+                  <span id="paymentLoadingText" class="visually-hidden">Preparing payment options...</span>
+                </div>
               </div>
               <div id="paymentStatus" class="payment-note is-hidden"></div>
             </div>
