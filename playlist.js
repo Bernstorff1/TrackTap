@@ -1601,17 +1601,33 @@ async function confirmStripePayment() {
   if (!stripeClient || !stripeElements || !stripeClientSecret) {
     throw new Error("Payment form is not ready yet.");
   }
+  const { error: submitError } = await stripeElements.submit();
+  if (submitError) {
+    const submitCode = submitError?.code ? `[${submitError.code}] ` : "";
+    throw new Error(`${submitCode}${submitError.message || "Betalingsfeltet er ikke udfyldt korrekt."}`);
+  }
+
   const returnUrl = new URL(window.location.href);
   returnUrl.searchParams.set("payment", "success");
-  const { error } = await stripeClient.confirmPayment({
+  const { error, paymentIntent } = await stripeClient.confirmPayment({
     elements: stripeElements,
-    clientSecret: stripeClientSecret,
     confirmParams: {
       return_url: returnUrl.toString(),
     },
     redirect: "if_required",
   });
-  if (error) throw new Error(error.message || "Payment was not completed.");
+  if (error) {
+    const errorCode = error?.code ? `[${error.code}] ` : "";
+    throw new Error(`${errorCode}${error.message || "Payment was not completed."}`);
+  }
+
+  if (paymentIntent?.status && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+    throw new Error(`Betaling ikke gennemfoert (status: ${paymentIntent.status}).`);
+  }
+
+  if (paymentIntent?.id) {
+    setPaymentDebug(`Confirm sendt. PI ${paymentIntent.id.slice(0, 12)}... status: ${paymentIntent.status || "ukendt"}.`);
+  }
 }
 
 async function mountStripeForAmount(amount) {
