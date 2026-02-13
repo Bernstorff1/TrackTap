@@ -1474,6 +1474,29 @@ async function mountStripeForAmount(amount) {
   if (!window.Stripe) {
     throw new Error("Stripe could not be loaded.");
   }
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const hasApplePayApi = typeof window.ApplePaySession !== "undefined";
+  let canMakeApplePayments = false;
+  if (hasApplePayApi) {
+    try {
+      canMakeApplePayments = !!window.ApplePaySession.canMakePayments();
+    } catch {
+      canMakeApplePayments = false;
+    }
+  }
+
+  if (isIOS && !hasApplePayApi) {
+    setPaymentStatus("");
+    setPaymentDebug("Apple Pay kraever Safari paa iPhone. Aabn siden direkte i Safari.");
+    return;
+  }
+  if (isIOS && hasApplePayApi && !canMakeApplePayments) {
+    setPaymentStatus("");
+    setPaymentDebug("Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).");
+    return;
+  }
+
   setPaymentStatus("Starter betaling...");
   setPaymentDebug("Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...");
   const payload = await createPaymentIntent(amount);
