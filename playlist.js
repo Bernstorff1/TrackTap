@@ -1512,6 +1512,41 @@ async function mountStripeForAmount(amount) {
     stripePublishableKey = publishableKey;
   }
 
+  let canPay = null;
+  try {
+    const paymentRequestProbe = stripeClient.paymentRequest({
+      country: "DK",
+      currency: "dkk",
+      total: {
+        label: "Tapster credits",
+        amount: Number(amount) * 100,
+      },
+      requestPayerName: true,
+      requestPayerEmail: true,
+    });
+    canPay = await paymentRequestProbe.canMakePayment();
+  } catch {
+    canPay = null;
+  }
+
+  if (!canPay) {
+    setPaymentStatus("");
+    setPaymentDebug(
+      "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session (Stripe canMakePayment=false)."
+    );
+    return;
+  }
+
+  const detectedWallets = [];
+  if (canPay.applePay) detectedWallets.push("Apple Pay");
+  if (canPay.googlePay) detectedWallets.push("Google Pay");
+  if (canPay.link) detectedWallets.push("Link");
+  if (detectedWallets.length) {
+    setPaymentDebug(`Forbinder til ${detectedWallets.join(" + ")}...`);
+  } else {
+    setPaymentDebug("Forbinder til wallet-betaling...");
+  }
+
   unmountStripeElements();
   stripeClientSecret = clientSecret;
   stripeIntentAmount = amount;
