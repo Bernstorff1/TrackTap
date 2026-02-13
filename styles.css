@@ -683,6 +683,19 @@ body.modal-open {
   border-color: transparent;
 }
 
+.auth-icon.apple {
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
+}
+
+.auth-icon.github {
+  background: #24292e;
+  color: #ffffff;
+  border-color: #24292e;
+  font-size: 9px;
+}
+
 .auth-icon.email {
   background: #00e5ff;
   color: #0f1118;

@@ -904,27 +904,40 @@ authProviderButtons.forEach((btn) => {
     }
     const provider = btn.getAttribute("data-provider");
     if (!provider) return;
-    if (provider === "email") {
-      const email = authEmail?.value.trim() || "";
-      if (!email) {
-        setHelperMessage(authHelper, "Enter your email first.", true);
+    setHelperMessage(authHelper, "", false);
+    try {
+      if (provider === "email") {
+        const email = authEmail?.value.trim() || "";
+        if (!email) {
+          setHelperMessage(authHelper, "Enter your email first.", true);
+          return;
+        }
+        const { error } = await supabaseClient.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: authRedirectUrl() },
+        });
+        if (error) {
+          setHelperMessage(authHelper, error.message || "Could not send email.", true);
+          return;
+        }
+        setHelperMessage(authHelper, "Magic link sent to your email.", true);
         return;
       }
-      const { error } = await supabaseClient.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: authRedirectUrl() },
+
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: authRedirectUrl() },
       });
       if (error) {
-        setHelperMessage(authHelper, error.message || "Could not send email.", true);
-        return;
+        const msg = error.message || "Could not start OAuth login.";
+        const help = /provider|supported|enabled|configured/i.test(msg)
+          ? `${msg} Enable this provider in Supabase Authentication settings.`
+          : msg;
+        setHelperMessage(authHelper, help, true);
       }
-      setHelperMessage(authHelper, "Magic link sent to your email.", true);
-      return;
+    } catch (error) {
+      setHelperMessage(authHelper, error?.message || "Could not start OAuth login.", true);
     }
-    await supabaseClient.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: authRedirectUrl() },
-    });
   });
 });
 

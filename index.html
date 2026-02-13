@@ -6,7 +6,7 @@
     <title>Tapster</title>
     <meta name="description" content="Tapster connects guests and hosts with music and atmosphere in seconds." />
     <link rel="icon" type="image/png" href="assets/Tapsterlogonyt.png" />
-    <link rel="stylesheet" href="styles.css?v=16" />
+    <link rel="stylesheet" href="styles.css?v=17" />
   </head>
   <body>
     <div class="bg-glow glow-one" aria-hidden="true"></div>
@@ -190,9 +190,17 @@
                 </span>
                 <span class="auth-text">Continue with Google</span>
               </button>
-              <button class="btn ghost auth-provider" type="button" data-provider="facebook">
-                <span class="auth-icon facebook">f</span>
-                <span class="auth-text">Continue with Facebook</span>
+              <button class="btn ghost auth-provider" type="button" data-provider="apple">
+                <span class="auth-icon apple">A</span>
+                <span class="auth-text">Continue with Apple</span>
+              </button>
+              <button class="btn ghost auth-provider" type="button" data-provider="github">
+                <span class="auth-icon github">GH</span>
+                <span class="auth-text">Continue with GitHub</span>
+              </button>
+              <button class="btn ghost auth-provider" type="button" data-provider="email">
+                <span class="auth-icon email">@</span>
+                <span class="auth-text">Send magic link</span>
               </button>
             </div>
             </div>
@@ -228,6 +236,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=22"></script>
   </body>
 </html>
