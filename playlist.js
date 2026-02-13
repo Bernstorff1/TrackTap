@@ -2119,7 +2119,7 @@ async function exportPlayedToSpotify() {
         1400
       );
     } else {
-      showInfo("Playlist was created, but no tracks could be added on Spotify.");
+      showInfo("Spotify playlist is already up to date.");
     }
     const playlistUrl = String(payload?.playlistUrl || "");
     const playlistUri = String(payload?.playlistUri || "");

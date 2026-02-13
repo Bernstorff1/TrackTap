@@ -13,6 +13,14 @@ type InputTrack = {
   webUrl?: string;
 };
 
+type SpotifyPlaylist = {
+  id?: string;
+  uri?: string;
+  name?: string;
+  description?: string;
+  external_urls?: { spotify?: string };
+};
+
 function retryAfterSeconds(res: Response): number {
   const raw = res.headers.get("retry-after");
   const value = Number(raw || "");
@@ -81,6 +89,66 @@ async function searchSpotifyTrackUri(tokens: string[], title: string, artist: st
   return "";
 }
 
+async function findRoomPlaylist(
+  accessToken: string,
+  roomId: string,
+  playlistName: string
+): Promise<SpotifyPlaylist | null> {
+  const marker = `[tapster_room:${roomId}]`;
+  const targetName = String(playlistName || "").trim().toLowerCase();
+  let nameMatch: SpotifyPlaylist | null = null;
+  let url = "https://api.spotify.com/v1/me/playlists?limit=50";
+  while (url) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const found = items.find((pl: SpotifyPlaylist) =>
+      String(pl?.description || "").includes(marker)
+    );
+    if (found) return found;
+    if (!nameMatch && targetName) {
+      const byName = items.find(
+        (pl: SpotifyPlaylist) => String(pl?.name || "").trim().toLowerCase() === targetName
+      );
+      if (byName) {
+        nameMatch = byName;
+      }
+    }
+    url = String(data?.next || "");
+  }
+  return nameMatch;
+}
+
+async function fetchPlaylistTrackUris(accessToken: string, playlistId: string): Promise<Set<string>> {
+  const uris = new Set<string>();
+  let offset = 0;
+  while (true) {
+    const url = new URL(
+      `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`
+    );
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("offset", String(offset));
+    url.searchParams.set("fields", "items(track(uri,is_local)),next");
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) break;
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    for (const item of items) {
+      const uri = String(item?.track?.uri || "");
+      if (uri.startsWith("spotify:track:")) uris.add(uri);
+    }
+    const hasNext = !!data?.next;
+    if (!hasNext || !items.length) break;
+    offset += items.length;
+  }
+  return uris;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -104,6 +172,7 @@ Deno.serve(async (req) => {
 
   const accessToken = String(body?.accessToken || "").trim();
   const fallbackUserId = String(body?.userId || "").trim();
+  const roomId = String(body?.roomId || "").trim().toUpperCase();
   const playlistNameRaw = String(body?.playlistName || "").trim();
   const playlistName = (playlistNameRaw || "Tapster Played").slice(0, 90);
   const tracks = Array.isArray(body?.tracks) ? (body.tracks as InputTrack[]) : [];
@@ -190,35 +259,43 @@ Deno.serve(async (req) => {
   const appTokenData = await appTokenRes.json();
   const appToken = String(appTokenData?.access_token || "");
 
-  const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${userSpotifyAccess}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: playlistName,
-      description: "Created from Tapster (Played)",
-      public: false,
-    }),
-  });
-  if (!createRes.ok) {
-    if (createRes.status === 429) {
-      return new Response(
-        JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(createRes) }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-    const details = await createRes.text();
-    return new Response(JSON.stringify({ error: "create_playlist_failed", details }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  const roomMarker = roomId ? `[tapster_room:${roomId}]` : "";
+  let playlist: SpotifyPlaylist | null = roomId
+    ? await findRoomPlaylist(userSpotifyAccess, roomId, playlistName)
+    : null;
+  if (!playlist) {
+    const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userSpotifyAccess}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: playlistName,
+        description: roomMarker
+          ? `Created from Tapster (Played) ${roomMarker}`
+          : "Created from Tapster (Played)",
+        public: false,
+      }),
     });
+    if (!createRes.ok) {
+      if (createRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(createRes) }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      const details = await createRes.text();
+      return new Response(JSON.stringify({ error: "create_playlist_failed", details }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    playlist = await createRes.json();
   }
-  const playlist = await createRes.json();
   const playlistId = String(playlist?.id || "");
   const playlistUrl = String(playlist?.external_urls?.spotify || "");
   const playlistUri = String(playlist?.uri || "");
@@ -245,10 +322,13 @@ Deno.serve(async (req) => {
     orderedUris.push(uri);
   }
 
+  const existingUris = await fetchPlaylistTrackUris(userSpotifyAccess, playlistId);
+  const newUris = orderedUris.filter((uri) => !existingUris.has(uri));
+
   let addedCount = 0;
   let skippedCount = 0;
-  for (let i = 0; i < orderedUris.length; i += 100) {
-    const chunk = orderedUris.slice(i, i + 100);
+  for (let i = 0; i < newUris.length; i += 100) {
+    const chunk = newUris.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
       method: "POST",
       headers: {
@@ -323,6 +403,7 @@ Deno.serve(async (req) => {
       playlistUri,
       added: addedCount,
       skipped: skippedCount,
+      existing: existingUris.size,
       playlistName,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
