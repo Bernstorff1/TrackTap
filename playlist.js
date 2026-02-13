@@ -94,9 +94,9 @@ const requesterNames = new Map();
 
 const defaultRequests = [
   {
-    id: "seed-superstition",
-    title: "Superstition",
-    artist: "Stevie Wonder",
+    id: "seed-green-onions",
+    title: "Green Onions",
+    artist: "Booker T. & the M.G.'s",
     comment: "",
     upvotes: 0,
     downvotes: 0,
@@ -280,7 +280,7 @@ async function subscribeBar() {
 
 function mapRowToRequest(row) {
   const seedCover =
-    !row.cover && row.track_title === "Superstition" && row.artist === "Stevie Wonder"
+    !row.cover && row.track_title === "Green Onions" && row.artist === "Booker T. & the M.G.'s"
       ? SEED_COVER_URL
       : row.cover || "";
   return {
@@ -326,13 +326,6 @@ function mapRequestToRow(item) {
   };
 }
 
-async function seedInitialRequestRemote() {
-  if (!useRemote || !supabaseClient) return;
-  const seed = { ...defaultRequests[0], id: `seed-${ROOM_ID}` };
-  const row = mapRequestToRow(seed);
-  await supabaseClient.from("requests").upsert(row, { onConflict: "id" });
-}
-
 async function fetchRequestsRemote() {
   if (!useRemote || !supabaseClient) return;
   const { data, error } = await supabaseClient
@@ -341,8 +334,7 @@ async function fetchRequestsRemote() {
     .eq("room_id", ROOM_ID);
   if (error) throw error;
   if (!data || data.length === 0) {
-    await seedInitialRequestRemote();
-    requests = defaultRequests.map((item) => ({ ...item, id: `seed-${ROOM_ID}` }));
+    requests = [];
   } else {
     requests = data.map(mapRowToRequest);
   }
@@ -966,6 +958,10 @@ function renderCard(item) {
   const disabled = item.status === "played" || isDj;
   const isOwnRequest = !!(currentUser?.id && item.requesterId && item.requesterId === currentUser.id);
   const upDisabled = disabled || isOwnRequest;
+  const isStarterSeed = String(item.id || "").startsWith("seed-");
+  const canUserDeleteStarter = !isDj && isStarterSeed;
+  const canDjDelete = isDj && ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0)) === 0;
+  const showManageActions = isDj || canUserDeleteStarter;
   const scoreLabel = item.djPinned
     ? `∞${item.upvotes - item.downvotes === 0 ? "" : item.upvotes - item.downvotes > 0 ? ` +${item.upvotes - item.downvotes}` : ` ${item.upvotes - item.downvotes}`}`
     : scoreOf(item);
@@ -993,14 +989,16 @@ function renderCard(item) {
           ${requesterLabel ? `<span class="requester">Requested by ${requesterLabel}</span>` : ""}
           ${item.djPinned ? `<span class="badge dj">DJ</span>` : ""}
         </div>
-        <div class="dj-actions" ${isDj ? "" : "style=\"display:none\""}>
+        <div class="dj-actions" ${showManageActions ? "" : "style=\"display:none\""}>
           ${
-            item.status === "queued"
+            isDj && item.status === "queued"
               ? `<button class="primary" data-action="play">Played</button>`
-              : `<button class="ghost" data-action="unplay">Undo</button>`
+              : isDj
+                ? `<button class="ghost" data-action="unplay">Undo</button>`
+                : ``
           }
           ${
-            isDj && ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0)) === 0
+            canDjDelete || canUserDeleteStarter
               ? `<button class="ghost" data-action="delete">Delete track</button>`
               : ``
           }
@@ -1095,8 +1093,11 @@ function handleAction(id, action) {
     syncRequest(item);
   }
 
-  if (action === "delete" && isDj) {
-    if ((item.paidBoostsUp || 0) + (item.paidBoostsDown || 0) > 0) return;
+  if (action === "delete") {
+    const isStarterSeed = String(item.id || "").startsWith("seed-");
+    const boostedVotes = (item.paidBoostsUp || 0) + (item.paidBoostsDown || 0);
+    if (isDj && boostedVotes > 0) return;
+    if (!isDj && !isStarterSeed) return;
     requests = requests.filter((r) => r.id !== id);
     persistRequests();
     deleteRequestRemote(id);

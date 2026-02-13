@@ -438,8 +438,8 @@ async function seedInitialRequest(code) {
   const row = {
     id: `seed-${code}`,
     room_id: code,
-    track_title: "Superstition",
-    artist: "Stevie Wonder",
+    track_title: "Green Onions",
+    artist: "Booker T. & the M.G.'s",
     comment: "",
     status: "queued",
     created_at: new Date().toISOString(),
