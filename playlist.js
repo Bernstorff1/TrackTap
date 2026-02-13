@@ -1593,6 +1593,7 @@ async function mountStripeForAmount(amount) {
   }
 
   let canPay = null;
+  let canPayProbeTimedOut = false;
   try {
     const paymentRequestProbe = stripeClient.paymentRequest({
       country: "DK",
@@ -1604,12 +1605,20 @@ async function mountStripeForAmount(amount) {
       requestPayerName: true,
       requestPayerEmail: true,
     });
-    canPay = await paymentRequestProbe.canMakePayment();
+    canPay = await Promise.race([
+      paymentRequestProbe.canMakePayment(),
+      new Promise((resolve) =>
+        setTimeout(() => {
+          canPayProbeTimedOut = true;
+          resolve(null);
+        }, 3500)
+      ),
+    ]);
   } catch {
     canPay = null;
   }
 
-  if (!canPay) {
+  if (!canPay && !canPayProbeTimedOut) {
     setPaymentStatus("");
     setPaymentDebug(
       "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session (Stripe canMakePayment=false)."
@@ -1617,31 +1626,41 @@ async function mountStripeForAmount(amount) {
     return;
   }
 
-  const hasAppleOrGoogle = !!(canPay.applePay || canPay.googlePay);
-  if (!hasAppleOrGoogle) {
-    setPaymentStatus("");
+  if (canPayProbeTimedOut) {
     setPaymentDebug(
-      "Stripe fandt ingen Apple Pay/Google Pay i denne session (kun fx Link)."
+      "Wallet-check timed out (canMakePayment). Fortsaetter med direkte wallet-mount..."
     );
-    return;
-  }
+  } else {
+    const hasAppleOrGoogle = !!(canPay.applePay || canPay.googlePay);
+    if (!hasAppleOrGoogle) {
+      setPaymentStatus("");
+      setPaymentDebug(
+        "Stripe fandt ingen Apple Pay/Google Pay i denne session (kun fx Link)."
+      );
+      return;
+    }
 
-  if (isIOS && !canPay.applePay) {
-    setPaymentStatus("");
-    setPaymentDebug(
-      "iPhone-session uden Apple Pay iflg. Stripe. Tjek Wallet-kort og at siden er aabnet direkte i Safari."
-    );
-    return;
+    if (isIOS && !canPay.applePay) {
+      setPaymentStatus("");
+      setPaymentDebug(
+        "iPhone-session uden Apple Pay iflg. Stripe. Tjek Wallet-kort og at siden er aabnet direkte i Safari."
+      );
+      return;
+    }
   }
 
   const detectedWallets = [];
-  if (canPay.applePay) detectedWallets.push("Apple Pay");
-  if (canPay.googlePay) detectedWallets.push("Google Pay");
-  if (canPay.link) detectedWallets.push("Link");
-  if (detectedWallets.length) {
-    setPaymentDebug(`Forbinder til ${detectedWallets.join(" + ")}...`);
-  } else {
-    setPaymentDebug("Forbinder til wallet-betaling...");
+  if (canPay && typeof canPay === "object") {
+    if (canPay.applePay) detectedWallets.push("Apple Pay");
+    if (canPay.googlePay) detectedWallets.push("Google Pay");
+    if (canPay.link) detectedWallets.push("Link");
+  }
+  if (!canPayProbeTimedOut) {
+    if (detectedWallets.length) {
+      setPaymentDebug(`Forbinder til ${detectedWallets.join(" + ")}...`);
+    } else {
+      setPaymentDebug("Forbinder til wallet-betaling...");
+    }
   }
 
   unmountStripeElements();
