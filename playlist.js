@@ -116,7 +116,7 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
-const FRONTEND_BUILD = "v25-2026-02-13";
+const FRONTEND_BUILD = "v26-2026-02-13";
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
 if (!ROOM_ID) {
@@ -1597,14 +1597,17 @@ async function refreshCreditsAfterPayment(expectedCredits) {
   renderLists();
 }
 
-async function confirmStripePayment() {
+async function confirmStripePayment(options = {}) {
   if (!stripeClient || !stripeElements || !stripeClientSecret) {
     throw new Error("Payment form is not ready yet.");
   }
-  const { error: submitError } = await stripeElements.submit();
-  if (submitError) {
-    const submitCode = submitError?.code ? `[${submitError.code}] ` : "";
-    throw new Error(`${submitCode}${submitError.message || "Betalingsfeltet er ikke udfyldt korrekt."}`);
+  const shouldSubmit = !!options?.submitElements;
+  if (shouldSubmit) {
+    const { error: submitError } = await stripeElements.submit();
+    if (submitError) {
+      const submitCode = submitError?.code ? `[${submitError.code}] ` : "";
+      throw new Error(`${submitCode}${submitError.message || "Betalingsfeltet er ikke udfyldt korrekt."}`);
+    }
   }
 
   const returnUrl = new URL(window.location.href);
@@ -1639,6 +1642,7 @@ async function mountStripeForAmount(amount) {
   }
   const ua = navigator.userAgent || "";
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/i.test(ua);
   const hasApplePayApi = typeof window.ApplePaySession !== "undefined";
   let canMakeApplePayments = false;
   let precheckWarning = "";
@@ -1649,7 +1653,9 @@ async function mountStripeForAmount(amount) {
       canMakeApplePayments = false;
     }
   }
-  if (isIOS && !hasApplePayApi) {
+  if (isIOS && !isSafari) {
+    precheckWarning = "Apple Pay virker bedst i Safari paa iPhone (ikke i-app browser).";
+  } else if (isIOS && !hasApplePayApi) {
     precheckWarning = "Apple Pay kraever Safari paa iPhone. Aabn siden direkte i Safari.";
   } else if (isIOS && hasApplePayApi && !canMakeApplePayments) {
     precheckWarning = "Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).";
@@ -1692,99 +1698,15 @@ async function mountStripeForAmount(amount) {
   showCardFallbackButton();
   updatePayPrices();
 
-  let canPay = null;
-  let canPayProbeTimedOut = false;
-  try {
-    const paymentRequestProbe = stripeClient.paymentRequest({
-      country: "DK",
-      currency: "dkk",
-      total: {
-        label: "Tapster credits",
-        amount: Number(amount) * 100,
-      },
-      requestPayerName: true,
-      requestPayerEmail: true,
-    });
-    canPay = await Promise.race([
-      paymentRequestProbe.canMakePayment(),
-      new Promise((resolve) =>
-        setTimeout(() => {
-          canPayProbeTimedOut = true;
-          resolve(null);
-        }, 3500)
-      ),
-    ]);
-  } catch {
-    canPay = null;
-  }
-
-  if (!canPay && !canPayProbeTimedOut) {
-    const reason =
-      precheckWarning ||
-      "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session.";
-    setPaymentStatus(createWalletUnavailableMessage(reason), true);
-    setPaymentDebug(`${reason} (Stripe canMakePayment=false).`);
-    return;
-  }
-
-  if (canPayProbeTimedOut) {
-    setPaymentStatus(
-      createWalletUnavailableMessage("Apple Pay/Google Pay svarede ikke hurtigt nok."),
-      true
-    );
-    setPaymentDebug(
-      "Wallet-check timed out (canMakePayment). Fortsaetter med direkte wallet-mount..."
-    );
-  } else {
-    const hasAppleOrGoogle = !!(canPay.applePay || canPay.googlePay);
-    if (!hasAppleOrGoogle) {
-      setPaymentStatus(
-        createWalletUnavailableMessage("Stripe fandt ingen Apple Pay/Google Pay i denne session."),
-        true
-      );
-      setPaymentDebug(
-        "Stripe fandt ingen Apple Pay/Google Pay i denne session (kun fx Link)."
-      );
-      return;
-    }
-
-    if (isIOS && !canPay.applePay) {
-      setPaymentStatus(
-        createWalletUnavailableMessage(
-          "iPhone-session uden Apple Pay iflg. Stripe."
-        ),
-        true
-      );
-      setPaymentDebug(
-        "iPhone-session uden Apple Pay iflg. Stripe. Tjek Wallet-kort og at siden er aabnet direkte i Safari."
-      );
-      return;
-    }
-  }
-
-  const detectedWallets = [];
-  if (canPay && typeof canPay === "object") {
-    if (canPay.applePay) detectedWallets.push("Apple Pay");
-    if (canPay.googlePay) detectedWallets.push("Google Pay");
-    if (canPay.link) detectedWallets.push("Link");
-  }
-  if (!canPayProbeTimedOut) {
-    if (detectedWallets.length) {
-      setPaymentDebug(`Forbinder til ${detectedWallets.join(" + ")}...`);
-    } else {
-      setPaymentDebug("Forbinder til wallet-betaling...");
-    }
-  }
-
   const expressPaymentMethods = isIOS
     ? {
-        applePay: "always",
+        applePay: "auto",
         googlePay: "never",
         link: "never",
       }
     : {
         applePay: "never",
-        googlePay: "always",
+        googlePay: "auto",
         link: "never",
       };
 
@@ -1797,7 +1719,7 @@ async function mountStripeForAmount(amount) {
     layout: {
       maxColumns: 2,
       maxRows: 1,
-      overflow: "never",
+      overflow: "auto",
     },
   });
 
@@ -1809,9 +1731,9 @@ async function mountStripeForAmount(amount) {
       true
     );
     setPaymentDebug(
-      "Apple Pay/Google Pay kunne ikke klargoeres i tide. Proev at reloade siden i Safari."
+      "Apple Pay/Google Pay kunne ikke klargoeres i tide. Brug kort-fallback eller reload i Safari."
     );
-  }, 7000);
+  }, 10000);
 
   stripeExpressElement.on("ready", (event) => {
     if (stripeWalletReadyTimeout) {
@@ -1873,7 +1795,7 @@ async function mountStripeForAmount(amount) {
     try {
       setPayBusy(true, "Processing wallet payment...");
       setPaymentStatus("Processing payment...");
-      await confirmStripePayment();
+      await confirmStripePayment({ submitElements: false });
       await refreshCreditsAfterPayment(stripeIntentAmount);
       setPaymentStatus(`Payment approved. ${stripeIntentAmount} credits added.`);
       flashNotice(`+${stripeIntentAmount} credits`);
@@ -1973,7 +1895,7 @@ if (cardConfirmBtn) {
     try {
       setPayBusy(true, "Behandler kortbetaling...");
       setPaymentStatus("Behandler kortbetaling...");
-      await confirmStripePayment();
+      await confirmStripePayment({ submitElements: true });
       await refreshCreditsAfterPayment(stripeIntentAmount);
       setPaymentStatus(`Betaling godkendt. ${stripeIntentAmount} credits tilfoejet.`);
       flashNotice(`+${stripeIntentAmount} credits`);
