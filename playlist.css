@@ -735,11 +735,31 @@ body::after {
 .played-actions {
   margin: 0 0 14px;
   display: flex;
+  align-items: center;
+  gap: 10px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .played-actions.hidden {
   display: none;
+}
+
+.played-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.played-sort-select {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #10121b;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
 }
 
 .spotify-btn {

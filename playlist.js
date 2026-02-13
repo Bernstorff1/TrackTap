@@ -67,6 +67,7 @@ const infoMessage = document.getElementById("infoMessage");
 const closeInfo = document.getElementById("closeInfo");
 const infoOk = document.getElementById("infoOk");
 const spotifyPlaylistBtn = document.querySelector(".spotify-btn");
+const playedSortSelect = document.getElementById("playedSort");
 const spotifyConnectBtn = document.getElementById("spotifyConnectBtn");
 const boostersVisibility = document.getElementById("boostersVisibility");
 const boostersToggle = document.getElementById("boostersToggle");
@@ -111,6 +112,7 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
+const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -130,6 +132,7 @@ let stripeReadyForAmount = false;
 let stripeBusy = false;
 let stripeWalletReadyTimeout = null;
 let lastFunctionsHealthCheckAt = 0;
+let playedSortMode = "latest";
 
 
 
@@ -795,10 +798,39 @@ function sortQueued(a, b) {
   return a.createdAt - b.createdAt;
 }
 
-function sortPlayed(a, b) {
+function sortPlayedLatest(a, b) {
   const playedDiff = (b.playedAt || 0) - (a.playedAt || 0);
   if (playedDiff !== 0) return playedDiff;
   return (b.createdAt || 0) - (a.createdAt || 0);
+}
+
+function sortPlayedScore(a, b) {
+  const scoreDiff = scoreOf(b) - scoreOf(a);
+  if (scoreDiff !== 0) return scoreDiff;
+  const upDiff = b.upvotes - a.upvotes;
+  if (upDiff !== 0) return upDiff;
+  return sortPlayedLatest(a, b);
+}
+
+function loadPlayedSortMode() {
+  try {
+    const saved = localStorage.getItem(PLAYED_SORT_STORAGE_KEY);
+    return saved === "score" ? "score" : "latest";
+  } catch {
+    return "latest";
+  }
+}
+
+function persistPlayedSortMode() {
+  try {
+    localStorage.setItem(PLAYED_SORT_STORAGE_KEY, playedSortMode);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function playedSorter() {
+  return playedSortMode === "score" ? sortPlayedScore : sortPlayedLatest;
 }
 
 
@@ -902,7 +934,7 @@ function renderSearchResults(items) {
 }
 function renderLists() {
   const queued = requests.filter((r) => r.status === "queued").sort(sortQueued);
-  const played = requests.filter((r) => r.status === "played").sort(sortPlayed);
+  const played = requests.filter((r) => r.status === "played").sort(playedSorter());
 
   queuedList.innerHTML = queued.length
     ? queued.map((item) => renderCard(item)).join("")
@@ -1242,6 +1274,16 @@ tabs.forEach((tab) => {
 
 if (playedActions) {
   playedActions.classList.toggle("hidden", !document.querySelector('.tab[data-tab="played"]')?.classList.contains("active"));
+}
+
+playedSortMode = loadPlayedSortMode();
+if (playedSortSelect) {
+  playedSortSelect.value = playedSortMode;
+  playedSortSelect.addEventListener("change", () => {
+    playedSortMode = playedSortSelect.value === "score" ? "score" : "latest";
+    persistPlayedSortMode();
+    renderLists();
+  });
 }
 
 addBtn.addEventListener("click", openModal);
@@ -2021,7 +2063,7 @@ async function startSpotifyConnect() {
 function collectPlayedTracks() {
   return requests
     .filter((item) => item.status === "played")
-    .sort(sortPlayed)
+    .sort(sortPlayedLatest)
     .map((item) => ({
       title: item.title || "",
       artist: item.artist || "",
