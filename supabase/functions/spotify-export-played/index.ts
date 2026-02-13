@@ -21,18 +21,11 @@ function parseTrackUri(track: InputTrack): string {
   return m ? `spotify:track:${m[1]}` : "";
 }
 
-async function refreshUserToken(
-  row: Record<string, unknown>,
+async function refreshTokenFromRefreshToken(
+  refreshToken: string,
   spotifyClientId: string,
   spotifyClientSecret: string
-): Promise<string> {
-  const accessToken = String(row.access_token || "");
-  const refreshToken = String(row.refresh_token || "");
-  const expiresAtRaw = String(row.expires_at || "");
-  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw).getTime() : 0;
-  if (accessToken && expiresAt && Date.now() < expiresAt - 30000) return accessToken;
-  if (!refreshToken) return accessToken;
-
+): Promise<{ accessToken: string; refreshToken: string }> {
   const basic = btoa(`${spotifyClientId}:${spotifyClientSecret}`);
   const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
@@ -51,7 +44,8 @@ async function refreshUserToken(
   const tokenData = await tokenRes.json();
   const nextAccess = String(tokenData.access_token || "");
   if (!nextAccess) throw new Error("refresh_missing_access_token");
-  return nextAccess;
+  const nextRefresh = String(tokenData.refresh_token || "").trim() || refreshToken;
+  return { accessToken: nextAccess, refreshToken: nextRefresh };
 }
 
 async function searchSpotifyTrackUri(appToken: string, title: string, artist: string): Promise<string> {
@@ -119,13 +113,20 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: tokenRow, error: tokenError } = await admin
-    .from("spotify_tokens")
-    .select("user_id, access_token, refresh_token, expires_at")
-    .eq("user_id", userId)
+  const { data: serviceTokenRow, error: serviceTokenError } = await admin
+    .from("spotify_service_tokens")
+    .select("key, refresh_token, user_id")
+    .eq("key", "tapster_service")
     .maybeSingle();
-  if (tokenError || !tokenRow) {
-    return new Response(JSON.stringify({ error: "spotify_not_connected" }), {
+  if (serviceTokenError || !serviceTokenRow) {
+    return new Response(JSON.stringify({ error: "service_spotify_not_connected" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const serviceRefreshToken = String(serviceTokenRow.refresh_token || "").trim();
+  if (!serviceRefreshToken) {
+    return new Response(JSON.stringify({ error: "missing_service_refresh_token" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -133,7 +134,19 @@ Deno.serve(async (req) => {
 
   let userSpotifyAccess = "";
   try {
-    userSpotifyAccess = await refreshUserToken(tokenRow, spotifyClientId, spotifyClientSecret);
+    const refreshed = await refreshTokenFromRefreshToken(
+      serviceRefreshToken,
+      spotifyClientId,
+      spotifyClientSecret
+    );
+    userSpotifyAccess = refreshed.accessToken;
+    await admin
+      .from("spotify_service_tokens")
+      .update({
+        refresh_token: refreshed.refreshToken,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key", "tapster_service");
   } catch {
     return new Response(JSON.stringify({ error: "refresh_failed" }), {
       status: 401,

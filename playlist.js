@@ -111,7 +111,6 @@ const HOST_PASSWORD_KEY = `${STORAGE_PREFIX}host_password`;
 const DJ_AUTH_KEY = `${STORAGE_PREFIX}dj_auth`;
 const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
-const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
@@ -595,11 +594,6 @@ async function loadSpotifyStatus(user) {
     await activateSpotifyForCurrentRoom();
     sessionStorage.removeItem(SPOTIFY_CONNECTED_PENDING_KEY);
     sessionStorage.removeItem(SPOTIFY_CONNECT_ROOM_KEY);
-  }
-  const exportPending = sessionStorage.getItem(SPOTIFY_EXPORT_PENDING_KEY) === "true";
-  if (isSpotifyConnected && exportPending && pendingRoom === ROOM_ID) {
-    sessionStorage.removeItem(SPOTIFY_EXPORT_PENDING_KEY);
-    await exportPlayedToSpotify();
   }
 }
 
@@ -2123,11 +2117,6 @@ async function exportPlayedToSpotify() {
 }
 
 async function handleSpotifyPlaylistButton() {
-  if (!isSpotifyConnected) {
-    sessionStorage.setItem(SPOTIFY_EXPORT_PENDING_KEY, "true");
-    await startSpotifyConnect();
-    return;
-  }
   await exportPlayedToSpotify();
 }
 
