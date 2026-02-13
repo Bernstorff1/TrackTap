@@ -458,83 +458,27 @@ body::after {
   min-height: 44px;
 }
 
-.card-fallback-btn {
-  border-color: rgba(0, 229, 255, 0.35);
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.12), rgba(255, 0, 212, 0.08));
-  font-weight: 600;
-}
-
-.card-fallback-wrap {
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(16, 18, 27, 0.72);
-}
-
-.stripe-card {
-  min-height: 190px;
-}
-
-.card-confirm-btn {
-  justify-content: center;
-  font-weight: 700;
-  border-color: rgba(0, 229, 255, 0.5);
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(255, 0, 212, 0.2));
-}
-
-.pay-btn {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #10121b;
-  color: var(--ink);
-  padding: 10px 12px;
-  border-radius: 14px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: 0.2s ease;
-  display: flex;
+.payment-loading {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  white-space: normal;
-}
-
-.pay-btn:hover {
-  border-color: rgba(0, 229, 255, 0.5);
-  box-shadow: 0 0 18px rgba(0, 229, 255, 0.18);
-  transform: translateY(-1px);
-}
-
-.pay-btn:disabled {
-  opacity: 0.65;
-  cursor: wait;
-  transform: none;
-}
-
-.pay-icon {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  font-weight: 700;
+  gap: 10px;
   font-size: 12px;
-  color: #0b0d14;
-  background: linear-gradient(135deg, rgba(255, 0, 212, 0.9), rgba(0, 229, 255, 0.9));
+  color: #c9d3ef;
 }
 
-.pay-price {
-  font-size: 11px;
-  color: #b5ffe9;
-  border: 1px solid rgba(87, 242, 193, 0.35);
-  padding: 2px 6px;
-  border-radius: 999px;
+.payment-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #00e5ff;
+  animation: payment-spin 0.85s linear infinite;
 }
 
-.pay-main {
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.12), rgba(16, 18, 27, 0.9));
+@keyframes payment-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .payment-error {
@@ -543,16 +487,6 @@ body::after {
 
 .payment-success {
   color: #9fffd2;
-}
-
-.payment-debug {
-  font-size: 12px;
-  color: #ffd8de;
-  line-height: 1.35;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(255, 123, 143, 0.14);
-  border: 1px solid rgba(255, 123, 143, 0.28);
 }
 
 .amount-slider {

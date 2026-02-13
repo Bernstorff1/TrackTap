@@ -39,12 +39,9 @@ const amountValue = document.getElementById("amountValue");
 const paymentPanel = document.getElementById("paymentPanel");
 const paymentToggle = document.getElementById("paymentToggle");
 const paymentStatus = document.getElementById("paymentStatus");
-const paymentDebug = document.getElementById("paymentDebug");
+const paymentLoading = document.getElementById("paymentLoading");
+const paymentLoadingText = document.getElementById("paymentLoadingText");
 const expressCheckoutMount = document.getElementById("expressCheckoutElement");
-const cardFallbackBtn = document.getElementById("cardFallbackBtn");
-const cardFallbackWrap = document.getElementById("cardFallbackWrap");
-const paymentElementMount = document.getElementById("paymentElementMount");
-const cardConfirmBtn = document.getElementById("cardConfirmBtn");
 const easterEggBtn = document.getElementById("easterEggBtn");
 const easterEgg = document.getElementById("easterEgg");
 const djModal = document.getElementById("djModal");
@@ -116,7 +113,6 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
-const FRONTEND_BUILD = "v27-2026-02-13";
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
 if (!ROOM_ID) {
@@ -131,7 +127,6 @@ let stripeClient = null;
 let stripePublishableKey = "";
 let stripeElements = null;
 let stripeExpressElement = null;
-let stripePaymentElement = null;
 let stripeClientSecret = "";
 let stripeIntentAmount = 0;
 let stripeReadyForAmount = false;
@@ -1324,12 +1319,7 @@ if (trackCommentInput) {
 
 
 function updatePayPrices() {
-  if (cardFallbackBtn) {
-    cardFallbackBtn.textContent = `Brug kort i stedet (${selectedAmount} kr, midlertidig test)`;
-  }
-  if (cardConfirmBtn) {
-    cardConfirmBtn.textContent = `Betal ${selectedAmount} kr med kort`;
-  }
+  // Amount is shown by slider label.
 }
 
 function updateAmountLabel() {
@@ -1344,30 +1334,16 @@ function setPaymentStatus(message, isError = false) {
   paymentStatus.classList.toggle("payment-success", !!(message && !isError));
 }
 
-function setPaymentDebug(message) {
-  if (!paymentDebug) return;
-  paymentDebug.textContent = message || "";
-  paymentDebug.classList.toggle("is-hidden", !message);
-}
-
 function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
-  if (cardFallbackBtn) cardFallbackBtn.disabled = isBusy;
-  if (cardConfirmBtn) cardConfirmBtn.disabled = isBusy;
 }
 
-function hideCardFallback() {
-  if (cardFallbackBtn) cardFallbackBtn.classList.add("is-hidden");
-  if (cardFallbackWrap) cardFallbackWrap.classList.add("is-hidden");
-}
-
-function showCardFallbackButton() {
-  if (cardFallbackBtn) cardFallbackBtn.classList.remove("is-hidden");
-}
-
-function showCardFallbackForm() {
-  if (cardFallbackWrap) cardFallbackWrap.classList.remove("is-hidden");
-  if (cardFallbackBtn) cardFallbackBtn.classList.add("is-hidden");
+function setPaymentLoading(isLoading, message = "Klargoer betalingsloesning...") {
+  if (!paymentLoading) return;
+  paymentLoading.classList.toggle("is-hidden", !isLoading);
+  if (paymentLoadingText) {
+    paymentLoadingText.textContent = message;
+  }
 }
 
 function isPaymentPanelOpen() {
@@ -1464,10 +1440,7 @@ async function createPaymentIntent(amount) {
 
   // Ensure session exists and refresh if near expiry before invoking function.
   await getAccessTokenOrThrow();
-  const healthOk = await ensureFunctionsReachable();
-  if (!healthOk) {
-    setPaymentDebug("Server-tjek tog for lang tid. Proever alligevel at starte betaling...");
-  }
+  await ensureFunctionsReachable();
 
   let result = null;
   let invokeError = null;
@@ -1533,49 +1506,14 @@ function unmountStripeElements() {
     stripeExpressElement.unmount();
     stripeExpressElement = null;
   }
-  if (stripePaymentElement) {
-    stripePaymentElement.unmount();
-    stripePaymentElement = null;
-  }
   stripeElements = null;
   stripeClientSecret = "";
   stripeReadyForAmount = false;
-  hideCardFallback();
+  setPaymentLoading(false);
 }
 
 function createWalletUnavailableMessage(message) {
-  return `${message} Brug "kort i stedet" for at teste betalingen nu.`;
-}
-
-async function mountCardFallbackElement() {
-  if (!stripeElements || !stripeClientSecret || !stripeClient) {
-    throw new Error("Kortbetaling er ikke klar endnu.");
-  }
-  if (!paymentElementMount) {
-    throw new Error("Kortfeltet mangler paa siden.");
-  }
-
-  if (!stripePaymentElement) {
-    stripePaymentElement = stripeElements.create("payment", {
-      layout: "tabs",
-      wallets: {
-        applePay: "never",
-        googlePay: "never",
-      },
-      defaultValues: {
-        billingDetails: {
-          address: {
-            country: "DK",
-          },
-        },
-      },
-    });
-    stripePaymentElement.mount(paymentElementMount);
-  }
-
-  showCardFallbackForm();
-  setPaymentStatus("Kort-fallback er klar.");
-  setPaymentDebug("Kort-fallback aktiv: gennemfoer betaling med kort for at teste webhook og credits.");
+  return message;
 }
 
 async function refreshCreditsAfterPayment(expectedCredits) {
@@ -1603,17 +1541,9 @@ async function refreshCreditsAfterPayment(expectedCredits) {
   renderLists();
 }
 
-async function confirmStripePayment(options = {}) {
+async function confirmStripePayment() {
   if (!stripeClient || !stripeElements || !stripeClientSecret) {
     throw new Error("Payment form is not ready yet.");
-  }
-  const shouldSubmit = !!options?.submitElements;
-  if (shouldSubmit) {
-    const { error: submitError } = await stripeElements.submit();
-    if (submitError) {
-      const submitCode = submitError?.code ? `[${submitError.code}] ` : "";
-      throw new Error(`${submitCode}${submitError.message || "Betalingsfeltet er ikke udfyldt korrekt."}`);
-    }
   }
 
   const returnUrl = new URL(window.location.href);
@@ -1632,10 +1562,6 @@ async function confirmStripePayment(options = {}) {
 
   if (paymentIntent?.status && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
     throw new Error(`Betaling ikke gennemfoert (status: ${paymentIntent.status}).`);
-  }
-
-  if (paymentIntent?.id) {
-    setPaymentDebug(`Confirm sendt. PI ${paymentIntent.id.slice(0, 12)}... status: ${paymentIntent.status || "ukendt"}.`);
   }
 }
 
@@ -1667,26 +1593,22 @@ async function mountStripeForAmount(amount) {
     precheckWarning = "Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).";
   }
 
+  unmountStripeElements();
+  setPaymentLoading(true, "Klargoer betalingsloesning...");
   setPaymentStatus("Starter betaling...");
-  setPaymentDebug(`[${FRONTEND_BUILD}] Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...`);
   const payload = await createPaymentIntent(amount);
-  setPaymentDebug("Forbinder til Apple Pay/Google Pay...");
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
-  const paymentIntentId = String(payload?.paymentIntentId || "");
   if (!publishableKey || !clientSecret) {
     throw new Error("Missing Stripe details from the server.");
   }
-  if (paymentIntentId) {
-    setPaymentDebug(`Server OK (PI: ${paymentIntentId.slice(0, 12)}...). Finder wallets...`);
-  }
+  setPaymentStatus("Forbinder til Apple Pay/Google Pay...");
 
   if (!stripeClient || stripePublishableKey !== publishableKey) {
     stripeClient = window.Stripe(publishableKey);
     stripePublishableKey = publishableKey;
   }
 
-  unmountStripeElements();
   stripeClientSecret = clientSecret;
   stripeIntentAmount = amount;
   stripeElements = stripeClient.elements({
@@ -1701,7 +1623,6 @@ async function mountStripeForAmount(amount) {
       },
     },
   });
-  showCardFallbackButton();
   updatePayPrices();
 
   const expressPaymentMethods = isIOS
@@ -1736,9 +1657,7 @@ async function mountStripeForAmount(amount) {
       ),
       true
     );
-    setPaymentDebug(
-      "Apple Pay/Google Pay kunne ikke klargoeres i tide. Brug kort-fallback eller reload i Safari."
-    );
+    setPaymentLoading(false);
   }, 10000);
 
   stripeExpressElement.on("ready", (event) => {
@@ -1746,14 +1665,12 @@ async function mountStripeForAmount(amount) {
       clearTimeout(stripeWalletReadyTimeout);
       stripeWalletReadyTimeout = null;
     }
+    setPaymentLoading(false);
     const methods = event?.availablePaymentMethods || null;
     if (!methods) {
       setPaymentStatus(
         createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig lige nu."),
         true
-      );
-      setPaymentDebug(
-        "Apple Pay/Google Pay er ikke tilgaengelig lige nu. Proev i Safari paa iPhone med Wallet sat op."
       );
       return;
     }
@@ -1765,18 +1682,8 @@ async function mountStripeForAmount(amount) {
         createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."),
         true
       );
-      setPaymentDebug(
-        "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."
-      );
       return;
     }
-    const labels = enabled.map((method) => {
-      const normalized = String(method).toLowerCase().replace(/[_-]/g, "");
-      if (normalized.includes("apple")) return "Apple Pay";
-      if (normalized.includes("google")) return "Google Pay";
-      return method;
-    });
-    setPaymentDebug(`${labels.join(" + ")} er klar til betaling.`);
     setPaymentStatus("");
   });
 
@@ -1785,14 +1692,14 @@ async function mountStripeForAmount(amount) {
       clearTimeout(stripeWalletReadyTimeout);
       stripeWalletReadyTimeout = null;
     }
+    setPaymentLoading(false);
     const code = event?.error?.code || "unknown";
     const message = event?.error?.message || "";
     setPaymentStatus(
-      createWalletUnavailableMessage("Apple Pay/Google Pay kunne ikke indlaeses."),
+      createWalletUnavailableMessage(
+        `Apple Pay/Google Pay kunne ikke indlaeses (${code}${message ? `: ${message}` : ""}).`
+      ),
       true
-    );
-    setPaymentDebug(
-      `Apple Pay/Google Pay kunne ikke indlaeses (${code}${message ? `: ${message}` : ""}).`
     );
   });
 
@@ -1800,8 +1707,9 @@ async function mountStripeForAmount(amount) {
     if (stripeBusy) return;
     try {
       setPayBusy(true, "Processing wallet payment...");
+      setPaymentLoading(false);
       setPaymentStatus("Processing payment...");
-      await confirmStripePayment({ submitElements: false });
+      await confirmStripePayment();
       await refreshCreditsAfterPayment(stripeIntentAmount);
       setPaymentStatus(`Payment approved. ${stripeIntentAmount} credits added.`);
       flashNotice(`+${stripeIntentAmount} credits`);
@@ -1820,7 +1728,7 @@ async function mountStripeForAmount(amount) {
   stripeExpressElement.mount(expressCheckoutMount);
   stripeReadyForAmount = true;
   if (precheckWarning) {
-    setPaymentStatus(createWalletUnavailableMessage(precheckWarning), true);
+    setPaymentStatus(precheckWarning, true);
   } else {
     setPaymentStatus("");
   }
@@ -1835,9 +1743,9 @@ async function ensureStripeForAmount(amount) {
     setPayBusy(true, "Preparing payment...");
     await mountStripeForAmount(amount);
   } catch (error) {
+    setPaymentLoading(false);
     const message = error?.message || "Could not prepare payment.";
     setPaymentStatus(message, true);
-    setPaymentDebug(`Betaling kunne ikke startes: ${message}`);
   } finally {
     setPayBusy(false);
   }
@@ -1874,49 +1782,11 @@ paymentToggle.addEventListener("click", () => {
   if (isPaymentPanelOpen()) {
     ensureStripeForAmount(selectedAmount);
   } else {
+    setPaymentLoading(false);
     setPaymentStatus("");
-    setPaymentDebug("");
     unmountStripeElements();
   }
 });
-
-if (cardFallbackBtn) {
-  cardFallbackBtn.addEventListener("click", async () => {
-    if (stripeBusy) return;
-    try {
-      setPayBusy(true, "Klargoer kortfallback...");
-      setPaymentStatus("Klargoer kortfallback...");
-      await mountCardFallbackElement();
-    } catch (error) {
-      setPaymentStatus(error?.message || "Kortfallback kunne ikke startes.", true);
-    } finally {
-      setPayBusy(false);
-    }
-  });
-}
-
-if (cardConfirmBtn) {
-  cardConfirmBtn.addEventListener("click", async () => {
-    if (stripeBusy) return;
-    try {
-      setPayBusy(true, "Behandler kortbetaling...");
-      setPaymentStatus("Behandler kortbetaling...");
-      await confirmStripePayment({ submitElements: true });
-      await refreshCreditsAfterPayment(stripeIntentAmount);
-      setPaymentStatus(`Betaling godkendt. ${stripeIntentAmount} credits tilfoejet.`);
-      flashNotice(`+${stripeIntentAmount} credits`);
-    } catch (error) {
-      setPaymentStatus(error?.message || "Kortbetaling fejlede.", true);
-    } finally {
-      setPayBusy(false);
-      try {
-        await mountStripeForAmount(selectedAmount);
-      } catch {
-        // ignore remount error
-      }
-    }
-  });
-}
 
 if (menuPanel) {
   const toggleMenu = () => menuPanel.classList.toggle("is-hidden");
