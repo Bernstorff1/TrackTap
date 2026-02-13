@@ -1579,8 +1579,12 @@ async function mountStripeForAmount(amount) {
   setPaymentDebug("Forbinder til Apple Pay/Google Pay...");
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
+  const paymentIntentId = String(payload?.paymentIntentId || "");
   if (!publishableKey || !clientSecret) {
     throw new Error("Missing Stripe details from the server.");
+  }
+  if (paymentIntentId) {
+    setPaymentDebug(`Server OK (PI: ${paymentIntentId.slice(0, 12)}...). Finder wallets...`);
   }
 
   if (!stripeClient || stripePublishableKey !== publishableKey) {
@@ -1609,6 +1613,23 @@ async function mountStripeForAmount(amount) {
     setPaymentStatus("");
     setPaymentDebug(
       "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session (Stripe canMakePayment=false)."
+    );
+    return;
+  }
+
+  const hasAppleOrGoogle = !!(canPay.applePay || canPay.googlePay);
+  if (!hasAppleOrGoogle) {
+    setPaymentStatus("");
+    setPaymentDebug(
+      "Stripe fandt ingen Apple Pay/Google Pay i denne session (kun fx Link)."
+    );
+    return;
+  }
+
+  if (isIOS && !canPay.applePay) {
+    setPaymentStatus("");
+    setPaymentDebug(
+      "iPhone-session uden Apple Pay iflg. Stripe. Tjek Wallet-kort og at siden er aabnet direkte i Safari."
     );
     return;
   }
