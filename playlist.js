@@ -1325,50 +1325,87 @@ async function createPaymentIntent(amount) {
   if (!Number.isFinite(amount) || !PAYMENT_AMOUNTS.includes(amount)) {
     throw new Error("Invalid amount selected.");
   }
-  const postIntent = async (token) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+  if (!supabaseClient) throw new Error("Missing login");
+
+  const looksUnauthorized = (value) => /unauthorized|invalid jwt|jwt|401/i.test(String(value || ""));
+  const toMessage = (value, fallback) => {
+    const msg = String(value || "").trim();
+    return msg || fallback;
+  };
+
+  const invokeIntent = async () => {
+    let timeoutId = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error("Timeout fra betalingsserveren. Proev igen om lidt."));
+      }, 12000);
+    });
+
     try {
-      return await fetch(`${FUNCTIONS_URL}/stripe-create-payment-intent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ amount }),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error?.name === "AbortError") {
-        throw new Error("Timeout fra betalingsserveren. Proev igen om lidt.");
-      }
-      throw error;
+      return await Promise.race([
+        supabaseClient.functions.invoke("stripe-create-payment-intent", {
+          body: { amount },
+        }),
+        timeoutPromise,
+      ]);
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
     }
   };
 
-  const token = await getAccessTokenOrThrow();
-  let res = await postIntent(token);
-  let payload = await res.json().catch(() => ({}));
+  // Ensure session exists and refresh if near expiry before invoking function.
+  await getAccessTokenOrThrow();
 
-  // If token was rejected server-side, force-refresh once and retry.
-  if (!res.ok && String(payload?.error || "").toLowerCase() === "unauthorized" && supabaseClient) {
+  let result = null;
+  let invokeError = null;
+  try {
+    result = await invokeIntent();
+  } catch (error) {
+    invokeError = error;
+  }
+
+  const firstErrorText = `${invokeError?.message || ""} ${result?.error?.message || ""}`.trim();
+  if ((invokeError || result?.error) && looksUnauthorized(firstErrorText)) {
     const refreshed = await supabaseClient.auth.refreshSession();
-    const freshToken = refreshed?.data?.session?.access_token || "";
-    if (freshToken) {
-      res = await postIntent(freshToken);
-      payload = await res.json().catch(() => ({}));
+    if (refreshed?.data?.session?.access_token) {
+      invokeError = null;
+      try {
+        result = await invokeIntent();
+      } catch (error) {
+        invokeError = error;
+      }
     }
   }
 
-  if (!res.ok) {
-    if (String(payload?.error || "").toLowerCase() === "unauthorized") {
+  if (invokeError) {
+    const message = toMessage(invokeError?.message, "Could not start payment.");
+    if (looksUnauthorized(message)) {
       const next = encodeURIComponent(window.location.href);
       window.location.assign(`index.html?login=1&next=${next}`);
       throw new Error("Din session udløb. Log ind igen.");
     }
-    throw new Error(payload?.error || payload?.message || "Could not start payment.");
+    throw new Error(message);
+  }
+
+  if (result?.error) {
+    const message = toMessage(result.error.message, "Could not start payment.");
+    if (looksUnauthorized(message)) {
+      const next = encodeURIComponent(window.location.href);
+      window.location.assign(`index.html?login=1&next=${next}`);
+      throw new Error("Din session udløb. Log ind igen.");
+    }
+    throw new Error(message);
+  }
+
+  const payload = result?.data || {};
+  if (payload?.error) {
+    const message = toMessage(payload.error || payload.message, "Could not start payment.");
+    if (looksUnauthorized(message)) {
+      const next = encodeURIComponent(window.location.href);
+      window.location.assign(`index.html?login=1&next=${next}`);
+      throw new Error("Din session udløb. Log ind igen.");
+    }
+    throw new Error(message);
   }
 
   return payload;
