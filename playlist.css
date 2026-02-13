@@ -136,6 +136,11 @@ body::after {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.brand > div {
+  min-width: 0;
 }
 
 .brand-mark {
@@ -160,10 +165,19 @@ body::after {
   font-family: "Fraunces", serif;
   font-size: 20px;
   letter-spacing: 0.5px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  max-width: 100%;
+}
+
+#brandNameText {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-sub {
@@ -182,6 +196,7 @@ body::after {
   max-width: 180px;
   justify-content: flex-end;
   position: relative;
+  flex: 0 0 auto;
 }
 
 .menu-btn {
@@ -195,11 +210,13 @@ body::after {
   place-items: center;
   cursor: pointer;
   font-size: 16px;
+  flex: 0 0 auto;
 }
 
 .login-btn {
   padding: 8px 12px;
   font-size: 12px;
+  flex: 0 0 auto;
 }
 
 .avatar-btn {
@@ -213,6 +230,7 @@ body::after {
   cursor: pointer;
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
 }
 
 .qr-btn {
@@ -227,6 +245,7 @@ body::after {
   display: grid;
   place-items: center;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .menu-panel {
@@ -1305,10 +1324,21 @@ textarea {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: nowrap;
   }
 
   .role-toggle {
     margin-left: auto;
+  }
+
+  .brand-name {
+    font-size: 18px;
+  }
+
+  .brand-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hero h1 {
