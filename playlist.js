@@ -129,6 +129,7 @@ let stripeIntentAmount = 0;
 let stripeReadyForAmount = false;
 let stripeBusy = false;
 let stripeWalletReadyTimeout = null;
+let lastFunctionsHealthCheckAt = 0;
 
 
 
@@ -1321,6 +1322,35 @@ async function getAccessTokenOrThrow() {
   throw new Error("Din session udløb. Log ind igen.");
 }
 
+async function ensureFunctionsReachable() {
+  if (!supabaseClient) throw new Error("Missing login");
+  const now = Date.now();
+  if (now - lastFunctionsHealthCheckAt < 15000) return;
+
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("Kan ikke kontakte betalingsserveren lige nu."));
+    }, 4000);
+  });
+
+  try {
+    const result = await Promise.race([
+      supabaseClient.functions.invoke("health-ping", {
+        body: { source: "playlist", at: new Date().toISOString() },
+      }),
+      timeoutPromise,
+    ]);
+    const fnError = result?.error?.message || "";
+    if (fnError) {
+      throw new Error(`Health check fejlede: ${fnError}`);
+    }
+    lastFunctionsHealthCheckAt = now;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function createPaymentIntent(amount) {
   if (!Number.isFinite(amount) || !PAYMENT_AMOUNTS.includes(amount)) {
     throw new Error("Invalid amount selected.");
@@ -1355,6 +1385,7 @@ async function createPaymentIntent(amount) {
 
   // Ensure session exists and refresh if near expiry before invoking function.
   await getAccessTokenOrThrow();
+  await ensureFunctionsReachable();
 
   let result = null;
   let invokeError = null;
