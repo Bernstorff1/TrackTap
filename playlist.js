@@ -116,7 +116,7 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
-const FRONTEND_BUILD = "v26-2026-02-13";
+const FRONTEND_BUILD = "v27-2026-02-13";
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
 if (!ROOM_ID) {
@@ -1399,15 +1399,15 @@ async function getAccessTokenOrThrow() {
 }
 
 async function ensureFunctionsReachable() {
-  if (!supabaseClient) throw new Error("Missing login");
+  if (!supabaseClient) return false;
   const now = Date.now();
-  if (now - lastFunctionsHealthCheckAt < 15000) return;
+  if (now - lastFunctionsHealthCheckAt < 15000) return true;
 
   let timeoutId = null;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       reject(new Error("Kan ikke kontakte betalingsserveren lige nu."));
-    }, 4000);
+    }, 6500);
   });
 
   try {
@@ -1419,9 +1419,12 @@ async function ensureFunctionsReachable() {
     ]);
     const fnError = result?.error?.message || "";
     if (fnError) {
-      throw new Error(`Health check fejlede: ${fnError}`);
+      return false;
     }
     lastFunctionsHealthCheckAt = now;
+    return true;
+  } catch {
+    return false;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
@@ -1461,7 +1464,10 @@ async function createPaymentIntent(amount) {
 
   // Ensure session exists and refresh if near expiry before invoking function.
   await getAccessTokenOrThrow();
-  await ensureFunctionsReachable();
+  const healthOk = await ensureFunctionsReachable();
+  if (!healthOk) {
+    setPaymentDebug("Server-tjek tog for lang tid. Proever alligevel at starte betaling...");
+  }
 
   let result = null;
   let invokeError = null;
