@@ -734,11 +734,10 @@ body::after {
 
 .played-actions {
   margin: 0 0 14px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .played-actions.hidden {
@@ -746,11 +745,16 @@ body::after {
 }
 
 .played-sort {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--muted);
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 14, 30, 0.55);
+  border-radius: 12px;
+  padding: 8px 10px;
 }
 
 .played-sort-select {
@@ -758,12 +762,21 @@ body::after {
   background: #10121b;
   color: var(--ink);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   font-size: 12px;
+  min-width: 0;
+  width: 100%;
 }
 
 .spotify-btn {
-  min-width: 240px;
+  min-width: 0;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-color: rgba(0, 229, 255, 0.3);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(0, 229, 255, 0.2),
     0 0 26px rgba(255, 0, 212, 0.12);
