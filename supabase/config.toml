@@ -60,3 +60,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/health-ping/deno.json"
 entrypoint = "./functions/health-ping/index.ts"
+
+[functions.stripe-env-check]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe-env-check/deno.json"
+entrypoint = "./functions/stripe-env-check/index.ts"

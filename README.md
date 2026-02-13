@@ -99,7 +99,7 @@ supabase functions deploy stripe-webhook
 
 3. I Stripe Dashboard:
 - Brug `Custom payment flow`
-- Opret webhook mod `https://xwafqfjhbiuogfjnlzln.functions.supabase.co/stripe-webhook`
+- Opret webhook mod `https://xwafqfjhbiuogfjnlzln.supabase.co/functions/v1/stripe-webhook`
 - Lyt på event: `payment_intent.succeeded`
 
 4. Apple Pay:
