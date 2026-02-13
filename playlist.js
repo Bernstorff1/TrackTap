@@ -1331,14 +1331,14 @@ function setPaymentStatus(message, isError = false) {
   paymentStatus.textContent = message || "";
   paymentStatus.classList.toggle("is-hidden", !message);
   paymentStatus.classList.toggle("payment-error", !!(message && isError));
-  paymentStatus.classList.toggle("payment-success", !!(message && !isError));
+  paymentStatus.classList.remove("payment-success");
 }
 
 function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
 }
 
-function setPaymentLoading(isLoading, message = "Klargoer betalingsloesning...") {
+function setPaymentLoading(isLoading, message = "Preparing payment options...") {
   if (!paymentLoading) return;
   paymentLoading.classList.toggle("is-hidden", !isLoading);
   if (paymentLoadingText) {
@@ -1367,11 +1367,11 @@ async function getAccessTokenOrThrow() {
     const refreshed = await supabaseClient.auth.refreshSession();
     const refreshedToken = refreshed?.data?.session?.access_token || "";
     if (refreshedToken) return refreshedToken;
-    throw new Error("Din session udløb. Log ind igen.");
+    throw new Error("Your session expired. Please log in again.");
   }
 
   if (initialToken) return initialToken;
-  throw new Error("Din session udløb. Log ind igen.");
+  throw new Error("Your session expired. Please log in again.");
 }
 
 async function ensureFunctionsReachable() {
@@ -1382,7 +1382,7 @@ async function ensureFunctionsReachable() {
   let timeoutId = null;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error("Kan ikke kontakte betalingsserveren lige nu."));
+      reject(new Error("Cannot reach the payment server right now."));
     }, 6500);
   });
 
@@ -1422,7 +1422,7 @@ async function createPaymentIntent(amount) {
     let timeoutId = null;
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
-        reject(new Error("Timeout fra betalingsserveren. Proev igen om lidt."));
+        reject(new Error("Payment server timeout. Please try again."));
       }, 12000);
     });
 
@@ -1468,7 +1468,7 @@ async function createPaymentIntent(amount) {
     if (looksUnauthorized(message)) {
       const next = encodeURIComponent(window.location.href);
       window.location.assign(`index.html?login=1&next=${next}`);
-      throw new Error("Din session udløb. Log ind igen.");
+      throw new Error("Your session expired. Please log in again.");
     }
     throw new Error(message);
   }
@@ -1478,7 +1478,7 @@ async function createPaymentIntent(amount) {
     if (looksUnauthorized(message)) {
       const next = encodeURIComponent(window.location.href);
       window.location.assign(`index.html?login=1&next=${next}`);
-      throw new Error("Din session udløb. Log ind igen.");
+      throw new Error("Your session expired. Please log in again.");
     }
     throw new Error(message);
   }
@@ -1489,7 +1489,7 @@ async function createPaymentIntent(amount) {
     if (looksUnauthorized(message)) {
       const next = encodeURIComponent(window.location.href);
       window.location.assign(`index.html?login=1&next=${next}`);
-      throw new Error("Din session udløb. Log ind igen.");
+      throw new Error("Your session expired. Please log in again.");
     }
     throw new Error(message);
   }
@@ -1561,7 +1561,7 @@ async function confirmStripePayment() {
   }
 
   if (paymentIntent?.status && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
-    throw new Error(`Betaling ikke gennemfoert (status: ${paymentIntent.status}).`);
+    throw new Error(`Payment not completed (status: ${paymentIntent.status}).`);
   }
 }
 
@@ -1586,23 +1586,23 @@ async function mountStripeForAmount(amount) {
     }
   }
   if (isIOS && !isSafari) {
-    precheckWarning = "Apple Pay virker bedst i Safari paa iPhone (ikke i-app browser).";
+    precheckWarning = "Apple Pay works best in Safari on iPhone (not in in-app browsers).";
   } else if (isIOS && !hasApplePayApi) {
-    precheckWarning = "Apple Pay kraever Safari paa iPhone. Aabn siden direkte i Safari.";
+    precheckWarning = "Apple Pay requires Safari on iPhone. Open this page directly in Safari.";
   } else if (isIOS && hasApplePayApi && !canMakeApplePayments) {
-    precheckWarning = "Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).";
+    precheckWarning = "Apple Pay is not active on this iPhone (check Wallet/cards and region).";
   }
 
   unmountStripeElements();
-  setPaymentLoading(true, "Klargoer betalingsloesning...");
-  setPaymentStatus("Starter betaling...");
+  setPaymentLoading(true, "Preparing payment options...");
+  setPaymentStatus("");
   const payload = await createPaymentIntent(amount);
   const publishableKey = String(payload?.publishableKey || "");
   const clientSecret = String(payload?.clientSecret || "");
   if (!publishableKey || !clientSecret) {
     throw new Error("Missing Stripe details from the server.");
   }
-  setPaymentStatus("Forbinder til Apple Pay/Google Pay...");
+  setPaymentStatus("");
 
   if (!stripeClient || stripePublishableKey !== publishableKey) {
     stripeClient = window.Stripe(publishableKey);
@@ -1653,7 +1653,7 @@ async function mountStripeForAmount(amount) {
   stripeWalletReadyTimeout = setTimeout(() => {
     setPaymentStatus(
       createWalletUnavailableMessage(
-        "Apple Pay/Google Pay kunne ikke klargoeres i tide."
+        "Apple Pay/Google Pay could not be prepared in time."
       ),
       true
     );
@@ -1669,7 +1669,7 @@ async function mountStripeForAmount(amount) {
     const methods = event?.availablePaymentMethods || null;
     if (!methods) {
       setPaymentStatus(
-        createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig lige nu."),
+        createWalletUnavailableMessage("Apple Pay/Google Pay is currently unavailable."),
         true
       );
       return;
@@ -1679,7 +1679,7 @@ async function mountStripeForAmount(amount) {
       .map(([name]) => name);
     if (!enabled.length) {
       setPaymentStatus(
-        createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."),
+        createWalletUnavailableMessage("Apple Pay/Google Pay is unavailable in this browser session."),
         true
       );
       return;
@@ -1697,7 +1697,7 @@ async function mountStripeForAmount(amount) {
     const message = event?.error?.message || "";
     setPaymentStatus(
       createWalletUnavailableMessage(
-        `Apple Pay/Google Pay kunne ikke indlaeses (${code}${message ? `: ${message}` : ""}).`
+        `Apple Pay/Google Pay could not be loaded (${code}${message ? `: ${message}` : ""}).`
       ),
       true
     );

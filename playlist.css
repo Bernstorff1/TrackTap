@@ -486,7 +486,7 @@ body::after {
 }
 
 .payment-success {
-  color: #9fffd2;
+  color: var(--muted);
 }
 
 .amount-slider {
