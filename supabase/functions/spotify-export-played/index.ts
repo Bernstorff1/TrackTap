@@ -172,25 +172,7 @@ Deno.serve(async (req) => {
   const appTokenData = await appTokenRes.json();
   const appToken = String(appTokenData?.access_token || "");
 
-  const meRes = await fetch("https://api.spotify.com/v1/me", {
-    headers: { Authorization: `Bearer ${userSpotifyAccess}` },
-  });
-  if (!meRes.ok) {
-    return new Response(JSON.stringify({ error: "me_failed" }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const me = await meRes.json();
-  const spotifyUserId = String(me?.id || "");
-  if (!spotifyUserId) {
-    return new Response(JSON.stringify({ error: "missing_spotify_user" }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const createRes = await fetch(`https://api.spotify.com/v1/users/${encodeURIComponent(spotifyUserId)}/playlists`, {
+  const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${userSpotifyAccess}`,
@@ -231,6 +213,8 @@ Deno.serve(async (req) => {
     orderedUris.push(uri);
   }
 
+  let addedCount = 0;
+  let skippedCount = 0;
   for (let i = 0; i < orderedUris.length; i += 100) {
     const chunk = orderedUris.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
@@ -242,19 +226,52 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ uris: chunk }),
     });
     if (!addRes.ok) {
+      // Some tracks can be blocked by region/rights even if playlist creation succeeds.
+      // Fall back to per-track insert so we can skip forbidden tracks instead of failing all.
+      if (addRes.status === 403) {
+        for (const uri of chunk) {
+          const singleRes = await fetch(
+            `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${userSpotifyAccess}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ uris: [uri] }),
+            }
+          );
+          if (singleRes.ok) {
+            addedCount += 1;
+            continue;
+          }
+          if (singleRes.status === 403 || singleRes.status === 404) {
+            skippedCount += 1;
+            continue;
+          }
+          const details = await singleRes.text();
+          return new Response(JSON.stringify({ error: "add_tracks_failed", details }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        continue;
+      }
       const details = await addRes.text();
       return new Response(JSON.stringify({ error: "add_tracks_failed", details }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    addedCount += chunk.length;
   }
 
   return new Response(
     JSON.stringify({
       ok: true,
       playlistUrl,
-      added: orderedUris.length,
+      added: addedCount,
+      skipped: skippedCount,
       playlistName,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }

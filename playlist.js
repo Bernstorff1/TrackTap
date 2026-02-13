@@ -2063,7 +2063,7 @@ function collectPlayedTracks() {
     }));
 }
 
-async function exportPlayedToSpotify() {
+async function exportPlayedToSpotify(popupWindow = null) {
   if (!supabaseClient) return;
   const playedTracks = collectPlayedTracks();
   if (!playedTracks.length) {
@@ -2108,16 +2108,31 @@ async function exportPlayedToSpotify() {
     }
     flashNotice("Playlist added to Spotify", 1300);
     if (payload.playlistUrl) {
-      window.open(payload.playlistUrl, "_blank", "noopener");
+      if (popupWindow && !popupWindow.closed) {
+        popupWindow.location.href = payload.playlistUrl;
+      } else {
+        window.open(payload.playlistUrl, "_blank", "noopener");
+      }
+    } else if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
     }
   } catch (error) {
+    if (popupWindow && !popupWindow.closed) {
+      popupWindow.close();
+    }
     const reason = error?.message ? ` (${error.message})` : "";
     showInfo(`Could not create Spotify playlist${reason}.`);
   }
 }
 
 async function handleSpotifyPlaylistButton() {
-  await exportPlayedToSpotify();
+  let popupWindow = null;
+  try {
+    popupWindow = window.open("about:blank", "_blank", "noopener");
+  } catch {
+    popupWindow = null;
+  }
+  await exportPlayedToSpotify(popupWindow);
 }
 
 if (spotifyPlaylistBtn) {
