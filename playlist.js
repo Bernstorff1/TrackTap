@@ -1563,11 +1563,24 @@ async function mountStripeForAmount(amount) {
     },
   });
 
+  const expressPaymentMethods = isIOS
+    ? {
+        applePay: "always",
+        googlePay: "never",
+        link: "never",
+      }
+    : {
+        applePay: "never",
+        googlePay: "always",
+        link: "never",
+      };
+
   stripeExpressElement = stripeElements.create("expressCheckout", {
     buttonType: {
       applePay: "buy",
       googlePay: "pay",
     },
+    paymentMethods: expressPaymentMethods,
     layout: {
       maxColumns: 2,
       maxRows: 1,
