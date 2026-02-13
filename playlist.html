@@ -72,6 +72,13 @@
             <div class="stripe-wrap">
               <div id="expressCheckoutElement" class="stripe-express"></div>
               <div id="paymentDebug" class="payment-debug is-hidden"></div>
+              <button id="cardFallbackBtn" class="pay-btn card-fallback-btn is-hidden" type="button">
+                Brug kort i stedet (midlertidig test)
+              </button>
+              <div id="cardFallbackWrap" class="card-fallback-wrap is-hidden">
+                <div id="paymentElementMount" class="stripe-card"></div>
+                <button id="cardConfirmBtn" class="pay-btn card-confirm-btn" type="button">Betal med kort</button>
+              </div>
               <div id="paymentStatus" class="payment-note is-hidden"></div>
             </div>
           </div>
@@ -209,6 +216,6 @@
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://js.stripe.com/v3"></script>
-    <script src="playlist.js?v=24"></script>
+    <script src="playlist.js?v=25"></script>
   </body>
 </html>

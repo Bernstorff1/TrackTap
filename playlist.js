@@ -41,6 +41,10 @@ const paymentToggle = document.getElementById("paymentToggle");
 const paymentStatus = document.getElementById("paymentStatus");
 const paymentDebug = document.getElementById("paymentDebug");
 const expressCheckoutMount = document.getElementById("expressCheckoutElement");
+const cardFallbackBtn = document.getElementById("cardFallbackBtn");
+const cardFallbackWrap = document.getElementById("cardFallbackWrap");
+const paymentElementMount = document.getElementById("paymentElementMount");
+const cardConfirmBtn = document.getElementById("cardConfirmBtn");
 const easterEggBtn = document.getElementById("easterEggBtn");
 const easterEgg = document.getElementById("easterEgg");
 const djModal = document.getElementById("djModal");
@@ -127,6 +131,7 @@ let stripeClient = null;
 let stripePublishableKey = "";
 let stripeElements = null;
 let stripeExpressElement = null;
+let stripePaymentElement = null;
 let stripeClientSecret = "";
 let stripeIntentAmount = 0;
 let stripeReadyForAmount = false;
@@ -1319,7 +1324,12 @@ if (trackCommentInput) {
 
 
 function updatePayPrices() {
-  // Wallet-only flow: amount is shown via the slider label.
+  if (cardFallbackBtn) {
+    cardFallbackBtn.textContent = `Brug kort i stedet (${selectedAmount} kr, midlertidig test)`;
+  }
+  if (cardConfirmBtn) {
+    cardConfirmBtn.textContent = `Betal ${selectedAmount} kr med kort`;
+  }
 }
 
 function updateAmountLabel() {
@@ -1342,6 +1352,22 @@ function setPaymentDebug(message) {
 
 function setPayBusy(isBusy, text) {
   stripeBusy = isBusy;
+  if (cardFallbackBtn) cardFallbackBtn.disabled = isBusy;
+  if (cardConfirmBtn) cardConfirmBtn.disabled = isBusy;
+}
+
+function hideCardFallback() {
+  if (cardFallbackBtn) cardFallbackBtn.classList.add("is-hidden");
+  if (cardFallbackWrap) cardFallbackWrap.classList.add("is-hidden");
+}
+
+function showCardFallbackButton() {
+  if (cardFallbackBtn) cardFallbackBtn.classList.remove("is-hidden");
+}
+
+function showCardFallbackForm() {
+  if (cardFallbackWrap) cardFallbackWrap.classList.remove("is-hidden");
+  if (cardFallbackBtn) cardFallbackBtn.classList.add("is-hidden");
 }
 
 function isPaymentPanelOpen() {
@@ -1501,9 +1527,49 @@ function unmountStripeElements() {
     stripeExpressElement.unmount();
     stripeExpressElement = null;
   }
+  if (stripePaymentElement) {
+    stripePaymentElement.unmount();
+    stripePaymentElement = null;
+  }
   stripeElements = null;
   stripeClientSecret = "";
   stripeReadyForAmount = false;
+  hideCardFallback();
+}
+
+function createWalletUnavailableMessage(message) {
+  return `${message} Brug "kort i stedet" for at teste betalingen nu.`;
+}
+
+async function mountCardFallbackElement() {
+  if (!stripeElements || !stripeClientSecret || !stripeClient) {
+    throw new Error("Kortbetaling er ikke klar endnu.");
+  }
+  if (!paymentElementMount) {
+    throw new Error("Kortfeltet mangler paa siden.");
+  }
+
+  if (!stripePaymentElement) {
+    stripePaymentElement = stripeElements.create("payment", {
+      layout: "tabs",
+      wallets: {
+        applePay: "never",
+        googlePay: "never",
+      },
+      defaultValues: {
+        billingDetails: {
+          address: {
+            country: "DK",
+          },
+        },
+      },
+    });
+    stripePaymentElement.mount(paymentElementMount);
+  }
+
+  showCardFallbackForm();
+  setPaymentStatus("Kort-fallback er klar.");
+  setPaymentDebug("Kort-fallback aktiv: gennemfoer betaling med kort for at teste webhook og credits.");
 }
 
 async function refreshCreditsAfterPayment(expectedCredits) {
@@ -1559,6 +1625,7 @@ async function mountStripeForAmount(amount) {
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const hasApplePayApi = typeof window.ApplePaySession !== "undefined";
   let canMakeApplePayments = false;
+  let precheckWarning = "";
   if (hasApplePayApi) {
     try {
       canMakeApplePayments = !!window.ApplePaySession.canMakePayments();
@@ -1566,16 +1633,10 @@ async function mountStripeForAmount(amount) {
       canMakeApplePayments = false;
     }
   }
-
   if (isIOS && !hasApplePayApi) {
-    setPaymentStatus("");
-    setPaymentDebug("Apple Pay kraever Safari paa iPhone. Aabn siden direkte i Safari.");
-    return;
-  }
-  if (isIOS && hasApplePayApi && !canMakeApplePayments) {
-    setPaymentStatus("");
-    setPaymentDebug("Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).");
-    return;
+    precheckWarning = "Apple Pay kraever Safari paa iPhone. Aabn siden direkte i Safari.";
+  } else if (isIOS && hasApplePayApi && !canMakeApplePayments) {
+    precheckWarning = "Apple Pay er ikke aktiv paa denne iPhone (tjek Wallet/kort og region).";
   }
 
   setPaymentStatus("Starter betaling...");
@@ -1596,6 +1657,24 @@ async function mountStripeForAmount(amount) {
     stripeClient = window.Stripe(publishableKey);
     stripePublishableKey = publishableKey;
   }
+
+  unmountStripeElements();
+  stripeClientSecret = clientSecret;
+  stripeIntentAmount = amount;
+  stripeElements = stripeClient.elements({
+    clientSecret,
+    appearance: {
+      theme: "night",
+      variables: {
+        colorPrimary: "#00e5ff",
+        colorBackground: "#0f1526",
+        colorText: "#f4f8ff",
+        colorDanger: "#ff7b8f",
+      },
+    },
+  });
+  showCardFallbackButton();
+  updatePayPrices();
 
   let canPay = null;
   let canPayProbeTimedOut = false;
@@ -1624,21 +1703,29 @@ async function mountStripeForAmount(amount) {
   }
 
   if (!canPay && !canPayProbeTimedOut) {
-    setPaymentStatus("");
-    setPaymentDebug(
-      "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session (Stripe canMakePayment=false)."
-    );
+    const reason =
+      precheckWarning ||
+      "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session.";
+    setPaymentStatus(createWalletUnavailableMessage(reason), true);
+    setPaymentDebug(`${reason} (Stripe canMakePayment=false).`);
     return;
   }
 
   if (canPayProbeTimedOut) {
+    setPaymentStatus(
+      createWalletUnavailableMessage("Apple Pay/Google Pay svarede ikke hurtigt nok."),
+      true
+    );
     setPaymentDebug(
       "Wallet-check timed out (canMakePayment). Fortsaetter med direkte wallet-mount..."
     );
   } else {
     const hasAppleOrGoogle = !!(canPay.applePay || canPay.googlePay);
     if (!hasAppleOrGoogle) {
-      setPaymentStatus("");
+      setPaymentStatus(
+        createWalletUnavailableMessage("Stripe fandt ingen Apple Pay/Google Pay i denne session."),
+        true
+      );
       setPaymentDebug(
         "Stripe fandt ingen Apple Pay/Google Pay i denne session (kun fx Link)."
       );
@@ -1646,7 +1733,12 @@ async function mountStripeForAmount(amount) {
     }
 
     if (isIOS && !canPay.applePay) {
-      setPaymentStatus("");
+      setPaymentStatus(
+        createWalletUnavailableMessage(
+          "iPhone-session uden Apple Pay iflg. Stripe."
+        ),
+        true
+      );
       setPaymentDebug(
         "iPhone-session uden Apple Pay iflg. Stripe. Tjek Wallet-kort og at siden er aabnet direkte i Safari."
       );
@@ -1667,22 +1759,6 @@ async function mountStripeForAmount(amount) {
       setPaymentDebug("Forbinder til wallet-betaling...");
     }
   }
-
-  unmountStripeElements();
-  stripeClientSecret = clientSecret;
-  stripeIntentAmount = amount;
-  stripeElements = stripeClient.elements({
-    clientSecret,
-    appearance: {
-      theme: "night",
-      variables: {
-        colorPrimary: "#00e5ff",
-        colorBackground: "#0f1526",
-        colorText: "#f4f8ff",
-        colorDanger: "#ff7b8f",
-      },
-    },
-  });
 
   const expressPaymentMethods = isIOS
     ? {
@@ -1710,6 +1786,12 @@ async function mountStripeForAmount(amount) {
   });
 
   stripeWalletReadyTimeout = setTimeout(() => {
+    setPaymentStatus(
+      createWalletUnavailableMessage(
+        "Apple Pay/Google Pay kunne ikke klargoeres i tide."
+      ),
+      true
+    );
     setPaymentDebug(
       "Apple Pay/Google Pay kunne ikke klargoeres i tide. Proev at reloade siden i Safari."
     );
@@ -1722,6 +1804,10 @@ async function mountStripeForAmount(amount) {
     }
     const methods = event?.availablePaymentMethods || null;
     if (!methods) {
+      setPaymentStatus(
+        createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig lige nu."),
+        true
+      );
       setPaymentDebug(
         "Apple Pay/Google Pay er ikke tilgaengelig lige nu. Proev i Safari paa iPhone med Wallet sat op."
       );
@@ -1731,6 +1817,10 @@ async function mountStripeForAmount(amount) {
       .filter(([, available]) => !!available)
       .map(([name]) => name);
     if (!enabled.length) {
+      setPaymentStatus(
+        createWalletUnavailableMessage("Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."),
+        true
+      );
       setPaymentDebug(
         "Apple Pay/Google Pay er ikke tilgaengelig i denne browser/session."
       );
@@ -1743,6 +1833,7 @@ async function mountStripeForAmount(amount) {
       return method;
     });
     setPaymentDebug(`${labels.join(" + ")} er klar til betaling.`);
+    setPaymentStatus("");
   });
 
   stripeExpressElement.on("loaderror", (event) => {
@@ -1752,6 +1843,10 @@ async function mountStripeForAmount(amount) {
     }
     const code = event?.error?.code || "unknown";
     const message = event?.error?.message || "";
+    setPaymentStatus(
+      createWalletUnavailableMessage("Apple Pay/Google Pay kunne ikke indlaeses."),
+      true
+    );
     setPaymentDebug(
       `Apple Pay/Google Pay kunne ikke indlaeses (${code}${message ? `: ${message}` : ""}).`
     );
@@ -1780,7 +1875,11 @@ async function mountStripeForAmount(amount) {
 
   stripeExpressElement.mount(expressCheckoutMount);
   stripeReadyForAmount = true;
-  setPaymentStatus("");
+  if (precheckWarning) {
+    setPaymentStatus(createWalletUnavailableMessage(precheckWarning), true);
+  } else {
+    setPaymentStatus("");
+  }
 }
 
 async function ensureStripeForAmount(amount) {
@@ -1836,6 +1935,44 @@ paymentToggle.addEventListener("click", () => {
     unmountStripeElements();
   }
 });
+
+if (cardFallbackBtn) {
+  cardFallbackBtn.addEventListener("click", async () => {
+    if (stripeBusy) return;
+    try {
+      setPayBusy(true, "Klargoer kortfallback...");
+      setPaymentStatus("Klargoer kortfallback...");
+      await mountCardFallbackElement();
+    } catch (error) {
+      setPaymentStatus(error?.message || "Kortfallback kunne ikke startes.", true);
+    } finally {
+      setPayBusy(false);
+    }
+  });
+}
+
+if (cardConfirmBtn) {
+  cardConfirmBtn.addEventListener("click", async () => {
+    if (stripeBusy) return;
+    try {
+      setPayBusy(true, "Behandler kortbetaling...");
+      setPaymentStatus("Behandler kortbetaling...");
+      await confirmStripePayment();
+      await refreshCreditsAfterPayment(stripeIntentAmount);
+      setPaymentStatus(`Betaling godkendt. ${stripeIntentAmount} credits tilfoejet.`);
+      flashNotice(`+${stripeIntentAmount} credits`);
+    } catch (error) {
+      setPaymentStatus(error?.message || "Kortbetaling fejlede.", true);
+    } finally {
+      setPayBusy(false);
+      try {
+        await mountStripeForAmount(selectedAmount);
+      } catch {
+        // ignore remount error
+      }
+    }
+  });
+}
 
 if (menuPanel) {
   const toggleMenu = () => menuPanel.classList.toggle("is-hidden");
