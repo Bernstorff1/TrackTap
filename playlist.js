@@ -809,7 +809,11 @@ function sortPlayedScore(a, b) {
   if (scoreDiff !== 0) return scoreDiff;
   const upDiff = b.upvotes - a.upvotes;
   if (upDiff !== 0) return upDiff;
-  return sortPlayedLatest(a, b);
+  const downDiff = a.downvotes - b.downvotes;
+  if (downDiff !== 0) return downDiff;
+  const playedOldestFirst = (a.playedAt || 0) - (b.playedAt || 0);
+  if (playedOldestFirst !== 0) return playedOldestFirst;
+  return (a.createdAt || 0) - (b.createdAt || 0);
 }
 
 function loadPlayedSortMode() {
