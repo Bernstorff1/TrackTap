@@ -112,6 +112,7 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const SPOTIFY_EXPORT_PENDING_KEY = "tapster_spotify_export_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
+const FRONTEND_BUILD = "v23-2026-02-13";
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
 
 if (!ROOM_ID) {
@@ -1578,7 +1579,7 @@ async function mountStripeForAmount(amount) {
   }
 
   setPaymentStatus("Starter betaling...");
-  setPaymentDebug("Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...");
+  setPaymentDebug(`[${FRONTEND_BUILD}] Tjekker om Apple Pay/Google Pay er tilgaengelig paa din enhed...`);
   const payload = await createPaymentIntent(amount);
   setPaymentDebug("Forbinder til Apple Pay/Google Pay...");
   const publishableKey = String(payload?.publishableKey || "");
