@@ -927,6 +927,8 @@ function renderLists() {
 function renderCard(item) {
   const vote = userVotes.get(item.id) || 0;
   const disabled = item.status === "played" || isDj;
+  const isOwnRequest = !!(currentUser?.id && item.requesterId && item.requesterId === currentUser.id);
+  const upDisabled = disabled || isOwnRequest;
   const scoreLabel = item.djPinned
     ? `∞${item.upvotes - item.downvotes === 0 ? "" : item.upvotes - item.downvotes > 0 ? ` +${item.upvotes - item.downvotes}` : ` ${item.upvotes - item.downvotes}`}`
     : scoreOf(item);
@@ -982,7 +984,7 @@ function renderCard(item) {
               : ""
           }
           <button class="vote-btn up ${vote === 1 ? "active up" : ""}" data-action="up" ${
-            disabled ? "disabled" : ""
+            upDisabled ? "disabled" : ""
           }>▲</button>
         </div>
         <div class="vote-row">
@@ -1026,6 +1028,7 @@ function handleAction(id, action) {
 
   if (action === "up" || action === "down") {
     if (item.status === "played" || isDj) return;
+    if (action === "up" && currentUser?.id && item.requesterId === currentUser.id) return;
     const nextVote = action === "up" ? 1 : -1;
     const currentVote = userVotes.get(id) || 0;
     if (currentVote === nextVote) {
