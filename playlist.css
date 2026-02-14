@@ -770,13 +770,31 @@ body::after {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-color: rgba(0, 229, 255, 0.3);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(0, 229, 255, 0.2),
-    0 0 26px rgba(255, 0, 212, 0.12);
+  color: #04130b;
+  border-color: rgba(29, 185, 84, 0.9);
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 52%, #68f39f 100%);
+  box-shadow: 0 12px 26px rgba(10, 28, 18, 0.45), 0 0 20px rgba(29, 185, 84, 0.35);
+}
+
+.spotify-btn:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.spotify-btn:focus-visible {
+  outline: 2px solid rgba(110, 255, 168, 0.85);
+  outline-offset: 2px;
+}
+
+.spotify-btn:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .card {
