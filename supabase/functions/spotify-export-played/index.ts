@@ -21,6 +21,26 @@ type SpotifyPlaylist = {
   external_urls?: { spotify?: string };
 };
 
+type RequestRow = {
+  track_title?: string;
+  artist?: string;
+  spotify_app_url?: string;
+  spotify_web_url?: string;
+};
+
+type PlaylistRow = {
+  playlist_name?: string;
+  bar_name?: string;
+};
+
+type RoomExportRow = {
+  room_id?: string;
+  spotify_playlist_id?: string;
+  spotify_playlist_url?: string;
+  spotify_playlist_uri?: string;
+  spotify_playlist_name?: string;
+};
+
 function retryAfterSeconds(res: Response): number {
   const raw = res.headers.get("retry-after");
   const value = Number(raw || "");
@@ -33,6 +53,26 @@ function parseTrackUri(track: InputTrack): string {
   const web = String(track?.webUrl || "").trim();
   const m = web.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]+)/);
   return m ? `spotify:track:${m[1]}` : "";
+}
+
+function toInputTrack(row: RequestRow): InputTrack {
+  return {
+    title: String(row?.track_title || ""),
+    artist: String(row?.artist || ""),
+    uri: String(row?.spotify_app_url || ""),
+    webUrl: String(row?.spotify_web_url || ""),
+  };
+}
+
+function buildSpotifyPlaylistName(base: string): string {
+  const clean = String(base || "").trim() || "Tapster";
+  if (clean.toLowerCase().endsWith(" - tapster")) return clean.slice(0, 90);
+  return `${clean} - Tapster`.slice(0, 90);
+}
+
+function isMissingRelationError(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message || "").toLowerCase();
+  return msg.includes("does not exist") || msg.includes("relation") || msg.includes("42p01");
 }
 
 async function refreshTokenFromRefreshToken(
@@ -122,33 +162,6 @@ async function findRoomPlaylist(
   return nameMatch;
 }
 
-async function fetchPlaylistTrackUris(accessToken: string, playlistId: string): Promise<Set<string>> {
-  const uris = new Set<string>();
-  let offset = 0;
-  while (true) {
-    const url = new URL(
-      `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`
-    );
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("offset", String(offset));
-    url.searchParams.set("fields", "items(track(uri,is_local)),next");
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) break;
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
-    for (const item of items) {
-      const uri = String(item?.track?.uri || "");
-      if (uri.startsWith("spotify:track:")) uris.add(uri);
-    }
-    const hasNext = !!data?.next;
-    if (!hasNext || !items.length) break;
-    offset += items.length;
-  }
-  return uris;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -173,9 +186,6 @@ Deno.serve(async (req) => {
   const accessToken = String(body?.accessToken || "").trim();
   const fallbackUserId = String(body?.userId || "").trim();
   const roomId = String(body?.roomId || "").trim().toUpperCase();
-  const playlistNameRaw = String(body?.playlistName || "").trim();
-  const playlistName = (playlistNameRaw || "Tapster Played").slice(0, 90);
-  const tracks = Array.isArray(body?.tracks) ? (body.tracks as InputTrack[]) : [];
 
   if (!accessToken) {
     return new Response(JSON.stringify({ error: "missing_access_token" }), {
@@ -183,8 +193,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  if (!tracks.length) {
-    return new Response(JSON.stringify({ error: "no_played_tracks" }), {
+  if (!roomId) {
+    return new Response(JSON.stringify({ error: "missing_room_id" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -196,6 +206,41 @@ Deno.serve(async (req) => {
   if (!userId) {
     return new Response(JSON.stringify({ error: "unauthorized", details: userError?.message || "no_user" }), {
       status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { data: roomData } = await admin
+    .from("playlists")
+    .select("playlist_name, bar_name")
+    .eq("code", roomId)
+    .maybeSingle();
+  const roomRow = (roomData || {}) as PlaylistRow;
+  const baseName =
+    String(roomRow?.playlist_name || "").trim() ||
+    String(roomRow?.bar_name || "").trim() ||
+    roomId;
+  const playlistName = buildSpotifyPlaylistName(baseName);
+
+  const { data: playedRows, error: playedError } = await admin
+    .from("requests")
+    .select("track_title, artist, spotify_app_url, spotify_web_url, played_at, created_at")
+    .eq("room_id", roomId)
+    .eq("status", "played")
+    .order("played_at", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (playedError) {
+    return new Response(JSON.stringify({ error: "played_query_failed", details: playedError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const tracks = Array.isArray(playedRows) ? playedRows.map((row) => toInputTrack(row as RequestRow)) : [];
+  if (!tracks.length) {
+    return new Response(JSON.stringify({ error: "no_played_tracks" }), {
+      status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -259,51 +304,91 @@ Deno.serve(async (req) => {
   const appTokenData = await appTokenRes.json();
   const appToken = String(appTokenData?.access_token || "");
 
-  const roomMarker = roomId ? `[tapster_room:${roomId}]` : "";
-  let playlist: SpotifyPlaylist | null = roomId
-    ? await findRoomPlaylist(userSpotifyAccess, roomId, playlistName)
-    : null;
-  if (!playlist) {
-    const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${userSpotifyAccess}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: playlistName,
-        description: roomMarker
-          ? `Created from Tapster (Played) ${roomMarker}`
-          : "Created from Tapster (Played)",
-        public: false,
-      }),
+  const { data: roomExportRow, error: roomExportError } = await admin
+    .from("spotify_room_exports")
+    .select("room_id, spotify_playlist_id, spotify_playlist_url, spotify_playlist_uri, spotify_playlist_name")
+    .eq("room_id", roomId)
+    .maybeSingle();
+
+  if (roomExportError && isMissingRelationError(roomExportError)) {
+    return new Response(JSON.stringify({ error: "missing_export_tables" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-    if (!createRes.ok) {
-      if (createRes.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(createRes) }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+  }
+  if (roomExportError) {
+    return new Response(JSON.stringify({ error: "room_export_query_failed", details: roomExportError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const exportRow = (roomExportRow || {}) as RoomExportRow;
+  let playlistId = String(exportRow?.spotify_playlist_id || "");
+  let playlistUrl = String(exportRow?.spotify_playlist_url || "");
+  let playlistUri = String(exportRow?.spotify_playlist_uri || "");
+
+  if (!playlistId) {
+    let playlist = await findRoomPlaylist(userSpotifyAccess, roomId, playlistName);
+    if (!playlist) {
+      const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${userSpotifyAccess}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: playlistName,
+          description: `Created from Tapster (Played) [tapster_room:${roomId}]`,
+          public: false,
+        }),
+      });
+      if (!createRes.ok) {
+        if (createRes.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(createRes) }),
+            {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+        const details = await createRes.text();
+        return new Response(JSON.stringify({ error: "create_playlist_failed", details }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
-      const details = await createRes.text();
-      return new Response(JSON.stringify({ error: "create_playlist_failed", details }), {
+      playlist = await createRes.json();
+    }
+
+    playlistId = String(playlist?.id || "");
+    playlistUrl = String(playlist?.external_urls?.spotify || "");
+    playlistUri = String(playlist?.uri || "");
+    if (!playlistId) {
+      return new Response(JSON.stringify({ error: "missing_playlist_id" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    playlist = await createRes.json();
-  }
-  const playlistId = String(playlist?.id || "");
-  const playlistUrl = String(playlist?.external_urls?.spotify || "");
-  const playlistUri = String(playlist?.uri || "");
-  if (!playlistId) {
-    return new Response(JSON.stringify({ error: "missing_playlist_id" }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+
+    const { error: saveExportError } = await admin.from("spotify_room_exports").upsert(
+      {
+        room_id: roomId,
+        spotify_playlist_id: playlistId,
+        spotify_playlist_url: playlistUrl,
+        spotify_playlist_uri: playlistUri,
+        spotify_playlist_name: playlistName,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "room_id" }
+    );
+    if (saveExportError) {
+      return new Response(JSON.stringify({ error: "room_export_save_failed", details: saveExportError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   const uriSet = new Set<string>();
@@ -322,11 +407,35 @@ Deno.serve(async (req) => {
     orderedUris.push(uri);
   }
 
-  const existingUris = await fetchPlaylistTrackUris(userSpotifyAccess, playlistId);
-  const newUris = orderedUris.filter((uri) => !existingUris.has(uri));
+  const { data: exportedRows, error: exportedError } = await admin
+    .from("spotify_room_export_tracks")
+    .select("track_uri")
+    .eq("room_id", roomId);
+
+  if (exportedError && isMissingRelationError(exportedError)) {
+    return new Response(JSON.stringify({ error: "missing_export_tables" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (exportedError) {
+    return new Response(JSON.stringify({ error: "export_tracks_query_failed", details: exportedError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const exportedSet = new Set<string>(
+    (Array.isArray(exportedRows) ? exportedRows : [])
+      .map((r) => String((r as { track_uri?: string })?.track_uri || ""))
+      .filter((uri) => uri.startsWith("spotify:track:"))
+  );
+
+  const newUris = orderedUris.filter((uri) => !exportedSet.has(uri));
 
   let addedCount = 0;
   let skippedCount = 0;
+  const insertedUris: string[] = [];
   for (let i = 0; i < newUris.length; i += 100) {
     const chunk = newUris.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
@@ -347,8 +456,6 @@ Deno.serve(async (req) => {
           }
         );
       }
-      // Some tracks can be blocked by region/rights even if playlist creation succeeds.
-      // Fall back to per-track insert so we can skip forbidden tracks instead of failing all.
       if (addRes.status === 403) {
         for (const uri of chunk) {
           const singleRes = await fetch(
@@ -364,6 +471,7 @@ Deno.serve(async (req) => {
           );
           if (singleRes.ok) {
             addedCount += 1;
+            insertedUris.push(uri);
             continue;
           }
           if (singleRes.status === 429) {
@@ -394,7 +502,40 @@ Deno.serve(async (req) => {
       });
     }
     addedCount += chunk.length;
+    insertedUris.push(...chunk);
   }
+
+  if (insertedUris.length) {
+    const nowIso = new Date().toISOString();
+    const rows = insertedUris.map((uri) => ({
+      room_id: roomId,
+      track_uri: uri,
+      exported_at: nowIso,
+    }));
+    const { error: saveTracksError } = await admin
+      .from("spotify_room_export_tracks")
+      .upsert(rows, { onConflict: "room_id,track_uri" });
+    if (saveTracksError) {
+      return new Response(JSON.stringify({ error: "export_tracks_save_failed", details: saveTracksError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  await admin
+    .from("spotify_room_exports")
+    .upsert(
+      {
+        room_id: roomId,
+        spotify_playlist_id: playlistId,
+        spotify_playlist_url: playlistUrl,
+        spotify_playlist_uri: playlistUri,
+        spotify_playlist_name: playlistName,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "room_id" }
+    );
 
   return new Response(
     JSON.stringify({
@@ -403,7 +544,7 @@ Deno.serve(async (req) => {
       playlistUri,
       added: addedCount,
       skipped: skippedCount,
-      existing: existingUris.size,
+      existing: exportedSet.size,
       playlistName,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }

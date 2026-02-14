@@ -2086,7 +2086,7 @@ async function exportPlayedToSpotify() {
     return;
   }
 
-  const playlistName = `${(brandNameText?.textContent || "Tapster").trim()} - Played`;
+  const playlistName = String((brandNameText?.textContent || "Tapster")).trim();
   try {
     const res = await fetch(`${FUNCTIONS_URL}/spotify-export-played`, {
       method: "POST",
