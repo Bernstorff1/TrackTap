@@ -233,6 +233,26 @@ body::after {
   flex: 0 0 auto;
 }
 
+.dj-btn {
+  width: 42px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 195, 95, 0.55);
+  background: linear-gradient(135deg, rgba(246, 183, 60, 0.28), rgba(255, 138, 92, 0.22));
+  color: #ffdba6;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(255, 138, 92, 0.2);
+}
+
+.dj-btn:hover {
+  filter: brightness(1.06);
+}
+
 .qr-btn {
   width: 32px;
   height: 32px;
