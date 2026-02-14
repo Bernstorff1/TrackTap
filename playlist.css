@@ -795,9 +795,9 @@ body::after {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #04130b;
-  border-color: rgba(29, 185, 84, 0.9);
-  background: linear-gradient(135deg, #1db954 0%, #1ed760 52%, #68f39f 100%);
+  color: #090909;
+  border-color: rgba(23, 150, 68, 0.95);
+  background: #1ed760;
   box-shadow: 0 12px 26px rgba(10, 28, 18, 0.45), 0 0 20px rgba(29, 185, 84, 0.35);
 }
 
