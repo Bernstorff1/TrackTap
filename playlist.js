@@ -2160,20 +2160,28 @@ async function exportPlayedToSpotify() {
 
   const playlistName = String((brandNameText?.textContent || "Tapster")).trim();
   try {
-    const res = await fetch(`${FUNCTIONS_URL}/spotify-export-played`, {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        accessToken: session.access_token,
-        userId: currentUser?.id || "",
-        roomId: ROOM_ID,
-        playlistName,
-        tracks: playedTracks,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    let res;
+    try {
+      res = await fetch(`${FUNCTIONS_URL}/spotify-export-played`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          accessToken: session.access_token,
+          userId: currentUser?.id || "",
+          roomId: ROOM_ID,
+          playlistName,
+          tracks: playedTracks,
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const payload = await res.json().catch(() => ({}));
     if (!res.ok || !payload?.ok) {
       if (payload?.error === "rate_limited") {
@@ -2209,6 +2217,10 @@ async function exportPlayedToSpotify() {
       window.location.assign(playlistUrl);
     }
   } catch (error) {
+    if (error?.name === "AbortError") {
+      showInfo("Spotify export timed out. Spotify can be difficult right now, please try again.");
+      return;
+    }
     const reason = error?.message ? ` (${error.message})` : "";
     showInfo(`Could not create Spotify playlist${reason}.`);
   }
