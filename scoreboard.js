@@ -56,19 +56,46 @@ function requiresUsernameChoice(user, displayName) {
 }
 
 async function signOut() {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   if (!supabaseClient) return;
   try {
-    await supabaseClient.auth.signOut({ scope: "global" });
-    await supabaseClient.auth.signOut({ scope: "local" });
+    await Promise.race([
+      (async () => {
+        try {
+          await supabaseClient.auth.signOut({ scope: "global" });
+        } catch {
+          // ignore
+        }
+        try {
+          await supabaseClient.auth.signOut({ scope: "local" });
+        } catch {
+          // ignore
+        }
+      })(),
+      wait(2500),
+    ]);
   } finally {
     try {
       Object.keys(localStorage)
-        .filter((key) => key.startsWith("sb-"))
+        .filter(
+          (key) =>
+            key.startsWith("sb-") ||
+            key.includes("supabase.auth") ||
+            key.includes("supabase-session")
+        )
         .forEach((key) => localStorage.removeItem(key));
+      Object.keys(sessionStorage)
+        .filter(
+          (key) =>
+            key.startsWith("sb-") ||
+            key.includes("supabase.auth") ||
+            key.includes("supabase-session")
+        )
+        .forEach((key) => sessionStorage.removeItem(key));
     } catch {
       // ignore
     }
-    window.location.assign("index.html");
+    window.location.replace("index.html?logout=1");
   }
 }
 

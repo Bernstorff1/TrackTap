@@ -846,25 +846,48 @@ if (infoModal) {
 }
 
 async function signOut() {
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   try {
     if (supabaseClient) {
-      await supabaseClient.auth.signOut({ scope: "global" });
-      await supabaseClient.auth.signOut({ scope: "local" });
+      await Promise.race([
+        (async () => {
+          try {
+            await supabaseClient.auth.signOut({ scope: "global" });
+          } catch {
+            // ignore
+          }
+          try {
+            await supabaseClient.auth.signOut({ scope: "local" });
+          } catch {
+            // ignore
+          }
+        })(),
+        wait(2500),
+      ]);
     }
   } finally {
     try {
       Object.keys(localStorage)
-        .filter((key) => key.startsWith("sb-"))
+        .filter(
+          (key) =>
+            key.startsWith("sb-") ||
+            key.includes("supabase.auth") ||
+            key.includes("supabase-session")
+        )
         .forEach((key) => localStorage.removeItem(key));
       Object.keys(sessionStorage)
-        .filter((key) => key.startsWith("sb-"))
+        .filter(
+          (key) =>
+            key.startsWith("sb-") ||
+            key.includes("supabase.auth") ||
+            key.includes("supabase-session")
+        )
         .forEach((key) => sessionStorage.removeItem(key));
     } catch {
       // ignore storage errors
     }
     updateUserStatus(null);
-    const next = `${window.location.pathname}?logout=1`;
-    window.location.assign(next);
+    window.location.replace("index.html?logout=1");
   }
 }
 
