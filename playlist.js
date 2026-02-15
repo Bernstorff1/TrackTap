@@ -113,6 +113,69 @@ const SPOTIFY_CONNECT_ROOM_KEY = "tapster_spotify_connect_room";
 const SPOTIFY_CONNECTED_PENDING_KEY = "tapster_spotify_connected_pending";
 const PAYMENT_AMOUNTS = [10, 25, 50];
 const PLAYED_SORT_STORAGE_KEY = `${STORAGE_PREFIX}played_sort`;
+const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
+const DJ_PASSWORD_HASH_PREFIX = "sha256$";
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function isHashedDjPassword(value) {
+  return typeof value === "string" && value.startsWith(DJ_PASSWORD_HASH_PREFIX);
+}
+
+async function hashDjPassword(password) {
+  const normalized = String(password || "").trim();
+  if (!normalized) return "";
+  if (!window.crypto?.subtle) throw new Error("crypto_unavailable");
+  const encoded = new TextEncoder().encode(normalized);
+  const digest = await window.crypto.subtle.digest("SHA-256", encoded);
+  return `${DJ_PASSWORD_HASH_PREFIX}${bytesToHex(new Uint8Array(digest))}`;
+}
+
+async function verifyDjPassword(input, stored) {
+  const normalizedInput = String(input || "").trim();
+  const normalizedStored = String(stored || "").trim();
+  if (!normalizedInput || !normalizedStored) return false;
+  if (!isHashedDjPassword(normalizedStored)) {
+    return normalizedInput === normalizedStored;
+  }
+  try {
+    const hashedInput = await hashDjPassword(normalizedInput);
+    return hashedInput === normalizedStored;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function requiresUsernameChoice(user, displayName) {
+  if (user?.user_metadata?.username_set === true) return false;
+  const name = normalizeLabel(displayName);
+  if (!name || name === "user") return true;
+  const email = normalizeLabel(user?.email);
+  const fullName = normalizeLabel(user?.user_metadata?.full_name);
+  if (email && name === email) return true;
+  if (fullName && name === fullName) return true;
+  return false;
+}
+
+async function ensureUsernameForSession(user) {
+  if (!supabaseClient || !user) return true;
+  const { data: profile, error } = await supabaseClient
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) return true;
+  if (!requiresUsernameChoice(user, profile?.display_name)) return true;
+  sessionStorage.setItem(POST_USERNAME_NEXT_KEY, window.location.href);
+  window.location.assign("username.html");
+  return false;
+}
 
 if (!ROOM_ID) {
   window.location.assign("index.html");
@@ -153,7 +216,6 @@ async function syncCreditsToProfile() {
     await supabaseClient.from("profiles").upsert({
       id: currentUser.id,
       credits: voteCredits,
-      display_name: currentUser.user_metadata?.full_name || currentUser.email || "User",
       updated_at: new Date().toISOString(),
     });
   } catch {
@@ -241,8 +303,10 @@ async function fetchBarRemote() {
   setBrandName(bar.displayName);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || "";
-  if (barHostPassword) {
+  if (barHostPassword && isHashedDjPassword(barHostPassword)) {
     localStorage.setItem(HOST_PASSWORD_KEY, barHostPassword);
+  } else {
+    localStorage.removeItem(HOST_PASSWORD_KEY);
   }
   return bar;
 }
@@ -265,6 +329,11 @@ function applyBarChange(payload) {
   setBrandName(bar.displayName);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || barHostPassword;
+  if (barHostPassword && isHashedDjPassword(barHostPassword)) {
+    localStorage.setItem(HOST_PASSWORD_KEY, barHostPassword);
+  } else {
+    localStorage.removeItem(HOST_PASSWORD_KEY);
+  }
 }
 
 async function subscribeBar() {
@@ -405,15 +474,17 @@ async function initSupabase() {
       window.location.assign(`index.html?login=1&next=${next}`);
       return;
     }
+    if (!(await ensureUsernameForSession(user))) return;
     loadCreditsForUser(user);
     loadSpotifyStatus(user);
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
+    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
       updateProfileIcon(session?.user || null);
       if (!session?.user) {
         const next = encodeURIComponent(window.location.href);
         window.location.assign(`index.html?login=1&next=${next}`);
         return;
       }
+      if (!(await ensureUsernameForSession(session.user))) return;
       loadCreditsForUser(session.user);
       loadSpotifyStatus(session.user);
     });
@@ -1953,7 +2024,7 @@ brandNameInput.addEventListener("keydown", (event) => {
   }
 });
 
-djForm.addEventListener("submit", (event) => {
+djForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const value = djPinInput.value.trim();
   const storedPassword = barHostPassword || localStorage.getItem(HOST_PASSWORD_KEY) || "";
@@ -1963,7 +2034,8 @@ djForm.addEventListener("submit", (event) => {
     djPinInput.select();
     return;
   }
-  if (value === storedPassword) {
+  const verified = await verifyDjPassword(value, storedPassword);
+  if (verified) {
     sessionStorage.setItem(DJ_AUTH_KEY, "true");
     closeDjModalPanel();
     setDjMode(true);
@@ -2112,6 +2184,10 @@ async function exportPlayedToSpotify() {
         );
         return;
       }
+      if (payload?.error === "no_matchable_tracks") {
+        showInfo("Tapster could not match the played songs to Spotify tracks right now. Please try again shortly.");
+        return;
+      }
       const reason = payload?.details || payload?.error || `http_${res.status}`;
       throw new Error(String(reason));
     }
@@ -2205,6 +2281,10 @@ setInterval(() => {
 const storedBrand = localStorage.getItem(`${STORAGE_PREFIX}brand_name`);
 setBrandName(storedBrand || "Tapster");
 barHostPassword = localStorage.getItem(HOST_PASSWORD_KEY) || "";
+if (barHostPassword && !isHashedDjPassword(barHostPassword)) {
+  localStorage.removeItem(HOST_PASSWORD_KEY);
+  barHostPassword = "";
+}
 // defer to initSupabase for remote load
 const storedVotes = loadVotes();
 Object.entries(storedVotes).forEach(([key, value]) => {

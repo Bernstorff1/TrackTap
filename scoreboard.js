@@ -9,6 +9,7 @@ const menuBtnScore = document.getElementById("menuBtnScore");
 const userAvatarBtnScore = document.getElementById("userAvatarBtnScore");
 const userDropdownScore = document.getElementById("userDropdownScore");
 const PREV_KEY = "tapster_prev";
+const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
 
 const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -37,6 +38,21 @@ function updateUserMenu(user) {
     userAvatarBtnScore.classList.add("is-hidden");
     menuBtnScore.classList.add("is-hidden");
   }
+}
+
+function normalizeLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function requiresUsernameChoice(user, displayName) {
+  if (user?.user_metadata?.username_set === true) return false;
+  const name = normalizeLabel(displayName);
+  if (!name || name === "user") return true;
+  const email = normalizeLabel(user?.email);
+  const fullName = normalizeLabel(user?.user_metadata?.full_name);
+  if (email && name === email) return true;
+  if (fullName && name === fullName) return true;
+  return false;
 }
 
 async function signOut() {
@@ -78,6 +94,19 @@ async function loadScoreboard() {
   updateUserMenu(user);
   if (!user) {
     window.location.assign("index.html?login=1");
+    return;
+  }
+  const { data: ownProfile, error: ownProfileError } = await supabaseClient
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!ownProfileError && requiresUsernameChoice(user, ownProfile?.display_name)) {
+    sessionStorage.setItem(
+      POST_USERNAME_NEXT_KEY,
+      `${window.location.pathname}${window.location.search}` || "scoreboard.html"
+    );
+    window.location.assign("username.html");
     return;
   }
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

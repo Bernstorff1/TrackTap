@@ -162,6 +162,17 @@ async function findRoomPlaylist(
   return nameMatch;
 }
 
+async function fetchPlaylistTrackTotal(accessToken: string, playlistId: string): Promise<number | null> {
+  const url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=1&fields=total`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const total = Number(data?.total);
+  return Number.isFinite(total) && total >= 0 ? total : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -406,6 +417,12 @@ Deno.serve(async (req) => {
     uriSet.add(uri);
     orderedUris.push(uri);
   }
+  if (!orderedUris.length) {
+    return new Response(JSON.stringify({ error: "no_matchable_tracks" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: exportedRows, error: exportedError } = await admin
     .from("spotify_room_export_tracks")
@@ -432,12 +449,33 @@ Deno.serve(async (req) => {
   );
 
   const newUris = orderedUris.filter((uri) => !exportedSet.has(uri));
+  let urisToAdd = newUris;
+
+  // If Supabase memory says "already exported" but the Spotify playlist is empty,
+  // recover by re-syncing all current played URIs.
+  if (!urisToAdd.length && orderedUris.length && playlistId) {
+    const total = await fetchPlaylistTrackTotal(userSpotifyAccess, playlistId);
+    if (total === 0 && exportedSet.size > 0) {
+      urisToAdd = [...orderedUris];
+      const { error: clearError } = await admin
+        .from("spotify_room_export_tracks")
+        .delete()
+        .eq("room_id", roomId);
+      if (clearError) {
+        return new Response(JSON.stringify({ error: "export_tracks_reset_failed", details: clearError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      exportedSet.clear();
+    }
+  }
 
   let addedCount = 0;
   let skippedCount = 0;
   const insertedUris: string[] = [];
-  for (let i = 0; i < newUris.length; i += 100) {
-    const chunk = newUris.slice(i, i + 100);
+  for (let i = 0; i < urisToAdd.length; i += 100) {
+    const chunk = urisToAdd.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
       method: "POST",
       headers: {

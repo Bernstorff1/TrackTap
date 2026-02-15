@@ -52,6 +52,10 @@ create table if not exists profiles (
   updated_at timestamptz default now()
 );
 
+create unique index if not exists profiles_display_name_unique_idx
+on profiles (lower(btrim(display_name)))
+where display_name is not null and btrim(display_name) <> '';
+
 create table if not exists credit_payments (
   payment_intent_id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,

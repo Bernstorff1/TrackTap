@@ -39,6 +39,8 @@ const guestSuccessBack = document.getElementById("guestSuccessBack");
 const hostSuccessBack = document.getElementById("hostSuccessBack");
 const OPEN_HOST_KEY = "tapster_open_host";
 const NEXT_KEY = "tapster_next";
+const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
+const USERNAME_SETUP_PATH = "username.html";
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
@@ -86,6 +88,21 @@ function normalizeCode(value) {
 
 function isValidCode(value) {
   return value.length >= 6 && value.length <= 8;
+}
+
+const DJ_PASSWORD_HASH_PREFIX = "sha256$";
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashDjPassword(password) {
+  const normalized = String(password || "").trim();
+  if (!normalized) return "";
+  if (!window.crypto?.subtle) throw new Error("crypto_unavailable");
+  const encoded = new TextEncoder().encode(normalized);
+  const digest = await window.crypto.subtle.digest("SHA-256", encoded);
+  return `${DJ_PASSWORD_HASH_PREFIX}${bytesToHex(new Uint8Array(digest))}`;
 }
 
 function toggleHelper(helperEl, show) {
@@ -178,19 +195,63 @@ async function ensureProfile(user) {
   try {
     const { data } = await supabaseClient
       .from("profiles")
-      .select("credits")
+      .select("display_name, credits")
       .eq("id", user.id)
       .maybeSingle();
-    if (!data) {
-      await supabaseClient.from("profiles").insert({
-        id: user.id,
-        display_name: user.user_metadata?.full_name || user.email || "User",
-        credits: 10,
-        updated_at: new Date().toISOString(),
-      });
-    }
+    if (data) return data;
+    await supabaseClient.from("profiles").insert({
+      id: user.id,
+      display_name: null,
+      credits: 10,
+      updated_at: new Date().toISOString(),
+    });
+    return { display_name: null, credits: 10 };
   } catch {
     // ignore profile init errors
+    return null;
+  }
+}
+
+function normalizeLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function requiresUsernameChoice(user, displayName) {
+  if (user?.user_metadata?.username_set === true) return false;
+  const name = normalizeLabel(displayName);
+  if (!name || name === "user") return true;
+  const email = normalizeLabel(user?.email);
+  const fullName = normalizeLabel(user?.user_metadata?.full_name);
+  if (email && name === email) return true;
+  if (fullName && name === fullName) return true;
+  return false;
+}
+
+function redirectToUsernameSetup() {
+  const pendingNext = sessionStorage.getItem(NEXT_KEY);
+  const fallbackNext = pendingNext || `${window.location.pathname}${window.location.search}` || "index.html";
+  sessionStorage.setItem(POST_USERNAME_NEXT_KEY, fallbackNext);
+  if (pendingNext) sessionStorage.removeItem(NEXT_KEY);
+  window.location.assign(USERNAME_SETUP_PATH);
+}
+
+async function syncSessionState(user, closeModalWhenLoggedIn) {
+  updateUserStatus(user || null);
+  if (!user) {
+    renderMyPlaylists();
+    return;
+  }
+  const profile = await ensureProfile(user);
+  if (profile && requiresUsernameChoice(user, profile?.display_name)) {
+    redirectToUsernameSetup();
+    return;
+  }
+  renderMyPlaylists();
+  if (closeModalWhenLoggedIn) closeAuthModal();
+  const next = sessionStorage.getItem(NEXT_KEY);
+  if (next) {
+    sessionStorage.removeItem(NEXT_KEY);
+    window.location.assign(next);
   }
 }
 
@@ -410,7 +471,7 @@ const SEED_COVER_URL = "assets/seed-superstition.svg";
 
 async function fetchBarByCode(code) {
   if (!supabaseClient) return { data: null, error: new Error("Supabase not configured") };
-  return supabaseClient.from("playlists").select("*").eq("code", code).maybeSingle();
+  return supabaseClient.from("playlists").select("code").eq("code", code).maybeSingle();
 }
 
 async function fetchMyPlaylists() {
@@ -457,6 +518,7 @@ async function createBar({ playlistName, hostPassword, desiredCode }) {
   const { data } = await supabaseClient.auth.getSession();
   const user = data?.session?.user;
   if (!user) throw new Error("auth_required");
+  const hostPasswordHash = await hashDjPassword(hostPassword);
   const barName = user.user_metadata?.full_name || user.email || "Min bar";
   const trimmedPlaylist = playlistName || null;
   if (desiredCode) {
@@ -464,12 +526,12 @@ async function createBar({ playlistName, hostPassword, desiredCode }) {
       code: desiredCode,
       bar_name: barName,
       playlist_name: trimmedPlaylist,
-      host_password: hostPassword,
+      host_password: hostPasswordHash,
       owner_id: user.id,
     });
     if (!error) {
       await seedInitialRequest(desiredCode);
-      return { guestCode: desiredCode, hostCode: desiredCode, hostPassword };
+      return { guestCode: desiredCode, hostCode: desiredCode, hostPassword, hostPasswordHash };
     }
     if (error.code === "23505") throw new Error("code_exists");
     throw error;
@@ -480,7 +542,7 @@ async function createBar({ playlistName, hostPassword, desiredCode }) {
       code: sharedCode,
       bar_name: barName,
       playlist_name: trimmedPlaylist,
-      host_password: hostPassword,
+      host_password: hostPasswordHash,
       owner_id: user.id,
     });
     if (!error) {
@@ -489,6 +551,7 @@ async function createBar({ playlistName, hostPassword, desiredCode }) {
         guestCode: sharedCode,
         hostCode: sharedCode,
         hostPassword,
+        hostPasswordHash,
       };
     }
     if (error.code !== "23505") throw error;
@@ -550,7 +613,7 @@ function validateHostPasswords() {
   const password = hostPasswordCreate.value.trim();
   const confirm = hostPasswordConfirm ? hostPasswordConfirm.value.trim() : "";
   const mismatch = !!confirm && password !== confirm;
-  setHelperMessage(createHelper, mismatch ? "Passwords do not match." : CREATE_HELPER_DEFAULT, mismatch);
+  setHelperMessage(createHelper, mismatch ? "DJ passwords do not match." : CREATE_HELPER_DEFAULT, mismatch);
 }
 
 hostPasswordCreate.addEventListener("input", () => {
@@ -618,13 +681,24 @@ createForm.addEventListener("submit", async (event) => {
   const desiredCode = desiredCodeRaw ? normalizeCode(desiredCodeRaw).slice(0, 8) : "";
   const password = hostPasswordCreate.value.trim();
   const confirm = hostPasswordConfirm ? hostPasswordConfirm.value.trim() : "";
-  const invalid =
-    !password ||
-    (confirm && password !== confirm) ||
-    (desiredCode &&
-      (desiredCode.length < 6 || desiredCode.length > 8 || !/^[A-Z0-9]+$/.test(desiredCode)));
-  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, invalid);
-  if (invalid) return;
+  const codeInvalid =
+    desiredCode &&
+    (desiredCode.length < 6 || desiredCode.length > 8 || !/^[A-Z0-9]+$/.test(desiredCode));
+  if (!password || !confirm) {
+    setHelperMessage(createHelper, "Enter and repeat DJ password.", true);
+    return;
+  }
+  if (password !== confirm) {
+    setHelperMessage(createHelper, "DJ passwords do not match.", true);
+    if (hostPasswordConfirm) hostPasswordConfirm.focus();
+    return;
+  }
+  if (codeInvalid) {
+    setHelperMessage(createHelper, "Code must be 6-8 uppercase letters or numbers.", true);
+    if (playlistCodeInput) playlistCodeInput.focus();
+    return;
+  }
+  setHelperMessage(createHelper, CREATE_HELPER_DEFAULT, false);
 
   if (!createBtn.dataset.label) {
     createBtn.dataset.label = createBtn.textContent;
@@ -636,7 +710,9 @@ createForm.addEventListener("submit", async (event) => {
     guestResultCode.textContent = result.guestCode;
     hostResultPassword.textContent = result.hostPassword;
     createForm.reset();
-    localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPassword);
+    if (result.hostPasswordHash) {
+      localStorage.setItem(hostPasswordKey(result.guestCode), result.hostPasswordHash);
+    }
     renderMyPlaylists();
     window.location.assign(`playlist.html?code=${encodeURIComponent(result.guestCode)}`);
   } catch (error) {
@@ -645,6 +721,8 @@ createForm.addEventListener("submit", async (event) => {
         ? "You must be logged in to create a playlist."
         : error.message === "code_exists"
           ? "Code already exists. Choose another."
+          : error.message === "crypto_unavailable"
+            ? "This device cannot create secure DJ passwords. Try a newer browser."
           : `Could not create playlist. ${error?.message || "Try again."}`;
     setHelperMessage(createHelper, message.trim(), true);
     openInfo(message.trim());
@@ -826,28 +904,12 @@ if (userDropdown) {
 }
 
 if (supabaseClient) {
-  completeOAuthRedirect().finally(() => {
-    supabaseClient.auth.getSession().then(({ data }) => {
-      updateUserStatus(data?.session?.user || null);
-      ensureProfile(data?.session?.user || null);
-      renderMyPlaylists();
-      const next = sessionStorage.getItem(NEXT_KEY);
-      if (data?.session?.user && next) {
-        sessionStorage.removeItem(NEXT_KEY);
-        window.location.assign(next);
-      }
-    });
+  completeOAuthRedirect().finally(async () => {
+    const { data } = await supabaseClient.auth.getSession();
+    await syncSessionState(data?.session?.user || null, false);
   });
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    updateUserStatus(session?.user || null);
-    ensureProfile(session?.user || null);
-    renderMyPlaylists();
-    if (session?.user) closeAuthModal();
-    const next = sessionStorage.getItem(NEXT_KEY);
-    if (session?.user && next) {
-      sessionStorage.removeItem(NEXT_KEY);
-      window.location.assign(next);
-    }
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    await syncSessionState(session?.user || null, true);
   });
 }
 

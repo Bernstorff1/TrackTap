@@ -19,6 +19,22 @@ const menuBtnProfile = document.getElementById("menuBtnProfile");
 const userAvatarBtnProfile = document.getElementById("userAvatarBtnProfile");
 const userDropdownProfile = document.getElementById("userDropdownProfile");
 const PREV_KEY = "tapster_prev";
+const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
+
+function normalizeLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function requiresUsernameChoice(user, displayName) {
+  if (user?.user_metadata?.username_set === true) return false;
+  const name = normalizeLabel(displayName);
+  if (!name || name === "user") return true;
+  const email = normalizeLabel(user?.email);
+  const fullName = normalizeLabel(user?.user_metadata?.full_name);
+  if (email && name === email) return true;
+  if (fullName && name === fullName) return true;
+  return false;
+}
 
 function toggleUserMenu() {
   if (!userDropdownProfile) return;
@@ -69,13 +85,22 @@ async function loadProfile() {
     window.location.assign("index.html?login=1");
     return;
   }
-  const name = user.user_metadata?.full_name || user.email || "User";
-  profileName.textContent = name;
-  const { data: profile } = await supabaseClient
+  const { data: profile, error: profileError } = await supabaseClient
     .from("profiles")
-    .select("credits")
+    .select("display_name, credits")
     .eq("id", user.id)
     .maybeSingle();
+  if (!profileError && requiresUsernameChoice(user, profile?.display_name)) {
+    sessionStorage.setItem(
+      POST_USERNAME_NEXT_KEY,
+      `${window.location.pathname}${window.location.search}` || "profile.html"
+    );
+    window.location.assign("username.html");
+    return;
+  }
+  const name = (profile?.display_name || "").trim() || user.user_metadata?.full_name || user.email || "User";
+  profileName.textContent = name;
+  if (userAvatarBtnProfile) userAvatarBtnProfile.textContent = (name.trim()[0] || "B").toUpperCase();
   creditsTotal.textContent = String(Number(profile?.credits ?? 0));
 
   if (
