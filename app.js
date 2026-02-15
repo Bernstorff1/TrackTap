@@ -510,29 +510,7 @@ async function fetchMyPlaylists() {
     .select("code, bar_name, playlist_name, created_at")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false });
-  if (Array.isArray(ownerRows) && ownerRows.length) return ownerRows;
-
-  // Fallback for legacy/local host playlists where owner_id may be missing or mismatched.
-  const fallbackCodes = [];
-  try {
-    const keyRegex = /^tapster_([A-Z0-9]{6,8})_host_password$/;
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i) || "";
-      const match = key.match(keyRegex);
-      if (match?.[1]) fallbackCodes.push(match[1]);
-    }
-  } catch {
-    // ignore local storage errors
-  }
-
-  const uniqueCodes = Array.from(new Set(fallbackCodes));
-  if (!uniqueCodes.length) return [];
-  const { data: fallbackRows } = await supabaseClient
-    .from("playlists")
-    .select("code, bar_name, playlist_name, created_at")
-    .in("code", uniqueCodes)
-    .order("created_at", { ascending: false });
-  return fallbackRows || [];
+  return ownerRows || [];
 }
 
 async function joinAsGuest(code) {
