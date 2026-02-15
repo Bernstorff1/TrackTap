@@ -19,6 +19,10 @@ let supabaseClient;
 let useRemote = true;
 let remotePoll;
 let roomStatusPoll;
+let requestsChannel = null;
+let barChannel = null;
+let realtimeReconnectTimer = null;
+let realtimeReconnectDelayMs = 1000;
 const requestForm = document.getElementById("requestForm");
 const requestHelper = document.getElementById("requestHelper");
 const searchResults = document.getElementById("searchResults");
@@ -337,14 +341,31 @@ function applyBarChange(payload) {
 }
 
 async function subscribeBar() {
-  const channel = supabaseClient
+  if (!supabaseClient) return;
+  if (barChannel) {
+    try {
+      await supabaseClient.removeChannel(barChannel);
+    } catch {
+      // ignore remove errors
+    }
+    barChannel = null;
+  }
+  barChannel = supabaseClient
     .channel(`playlists-${ROOM_ID}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "playlists", filter: `code=eq.${ROOM_ID}` },
       applyBarChange
     );
-  await channel.subscribe();
+  await barChannel.subscribe((status) => {
+    if (status === "SUBSCRIBED") {
+      realtimeReconnectDelayMs = 1000;
+      return;
+    }
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+      scheduleRealtimeReconnect(`bar_${status}`);
+    }
+  });
 }
 
 function mapRowToRequest(row) {
@@ -436,14 +457,57 @@ function applyRealtimeChange(payload) {
 }
 
 async function subscribeRequests() {
-  const channel = supabaseClient
+  if (!supabaseClient) return;
+  if (requestsChannel) {
+    try {
+      await supabaseClient.removeChannel(requestsChannel);
+    } catch {
+      // ignore remove errors
+    }
+    requestsChannel = null;
+  }
+  requestsChannel = supabaseClient
     .channel(`requests-${ROOM_ID}`)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "requests", filter: `room_id=eq.${ROOM_ID}` },
       applyRealtimeChange
     );
-  await channel.subscribe();
+  await requestsChannel.subscribe((status) => {
+    if (status === "SUBSCRIBED") {
+      realtimeReconnectDelayMs = 1000;
+      return;
+    }
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+      scheduleRealtimeReconnect(`requests_${status}`);
+    }
+  });
+}
+
+function clearRealtimeReconnectTimer() {
+  if (!realtimeReconnectTimer) return;
+  clearTimeout(realtimeReconnectTimer);
+  realtimeReconnectTimer = null;
+}
+
+function scheduleRealtimeReconnect(_reason) {
+  if (!useRemote || !supabaseClient) return;
+  if (realtimeReconnectTimer) return;
+  const delay = realtimeReconnectDelayMs;
+  realtimeReconnectTimer = setTimeout(async () => {
+    realtimeReconnectTimer = null;
+    try {
+      await fetchRequestsRemote();
+      await fetchBarRemote();
+      await subscribeRequests();
+      await subscribeBar();
+      realtimeReconnectDelayMs = 1000;
+    } catch {
+      realtimeReconnectDelayMs = Math.min(realtimeReconnectDelayMs * 2, 30000);
+      scheduleRealtimeReconnect("retry_failed");
+    }
+  }, delay);
+  realtimeReconnectDelayMs = Math.min(realtimeReconnectDelayMs * 2, 30000);
 }
 
 async function syncRequest(item) {
@@ -500,6 +564,7 @@ async function initSupabase() {
       roomStatusPoll = setInterval(checkRoomSpotifyStatus, 10000);
     }
   } catch {
+    clearRealtimeReconnectTimer();
     useRemote = false;
     requests = loadRequests();
     ensureSpotifyLinks();
