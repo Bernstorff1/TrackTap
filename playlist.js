@@ -494,7 +494,7 @@ async function initSupabase() {
     await subscribeRequests();
     await subscribeBar();
     if (!remotePoll) {
-      remotePoll = setInterval(fetchRequestsRemote, 60000);
+      remotePoll = setInterval(fetchRequestsRemote, 15000);
     }
     if (!roomStatusPoll) {
       roomStatusPoll = setInterval(checkRoomSpotifyStatus, 10000);
@@ -1877,7 +1877,7 @@ if (menuPanel) {
     menuPanel.classList.add("is-hidden");
   });
 
-  menuPanel.addEventListener("click", (event) => {
+  menuPanel.addEventListener("click", async (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
     const action = target.getAttribute("data-action");
@@ -1902,24 +1902,8 @@ if (menuPanel) {
       return;
     }
     if (action === "logout") {
-      try {
-        if (supabaseClient) {
-          supabaseClient.auth.signOut({ scope: "global" });
-          supabaseClient.auth.signOut({ scope: "local" });
-        }
-      } finally {
-        try {
-          Object.keys(localStorage)
-            .filter((key) => key.startsWith("sb-"))
-            .forEach((key) => localStorage.removeItem(key));
-          Object.keys(sessionStorage)
-            .filter((key) => key.startsWith("sb-"))
-            .forEach((key) => sessionStorage.removeItem(key));
-        } catch {
-          // ignore storage errors
-        }
-        window.location.assign("index.html?logout=1");
-      }
+      await signOutAndRedirect();
+      return;
     }
   });
 }
@@ -2001,6 +1985,27 @@ function toggleDjMenu() {
 function closeDjMenu() {
   if (!djMenuPanel) return;
   djMenuPanel.classList.add("is-hidden");
+}
+
+async function signOutAndRedirect() {
+  try {
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut({ scope: "global" });
+      await supabaseClient.auth.signOut({ scope: "local" });
+    }
+  } finally {
+    try {
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("sb-"))
+        .forEach((key) => localStorage.removeItem(key));
+      Object.keys(sessionStorage)
+        .filter((key) => key.startsWith("sb-"))
+        .forEach((key) => sessionStorage.removeItem(key));
+    } catch {
+      // ignore storage errors
+    }
+    window.location.assign("index.html?logout=1");
+  }
 }
 
 brandNameText.addEventListener("dblclick", () => {
