@@ -494,6 +494,10 @@ async function joinAsGuest(code) {
   return data;
 }
 
+function goToPlaylist(code) {
+  window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
+}
+
 async function seedInitialRequest(code) {
   if (!supabaseClient) return;
   const row = {
@@ -571,13 +575,7 @@ guestForm.addEventListener("submit", async (event) => {
   const invalid = !isValidCode(code);
   setHelperMessage(guestHelper, GUEST_HELPER_DEFAULT, invalid);
   if (invalid) return;
-  try {
-    await joinAsGuest(code);
-    window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
-  } catch (error) {
-    const message = error.message === "not_found" ? "Code not found." : "Could not find the bar.";
-    setHelperMessage(guestHelper, message, true);
-  }
+  goToPlaylist(code);
 });
 
 if (guestInputHost) {
@@ -599,13 +597,7 @@ if (guestFormHost) {
     const invalid = !isValidCode(code);
     setHelperMessage(guestHelperHost, GUEST_HELPER_DEFAULT, invalid);
     if (invalid) return;
-    try {
-      await joinAsGuest(code);
-      window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
-    } catch (error) {
-      const message = error.message === "not_found" ? "Code not found." : "Could not find the bar.";
-      setHelperMessage(guestHelperHost, message, true);
-    }
+    goToPlaylist(code);
   });
 }
 
