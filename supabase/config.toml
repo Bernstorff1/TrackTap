@@ -66,3 +66,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/stripe-env-check/deno.json"
 entrypoint = "./functions/stripe-env-check/index.ts"
+
+[functions.playlist-suggestions]
+enabled = true
+verify_jwt = false
+import_map = "./functions/playlist-suggestions/deno.json"
+entrypoint = "./functions/playlist-suggestions/index.ts"

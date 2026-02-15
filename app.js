@@ -44,6 +44,7 @@ const USERNAME_SETUP_PATH = "username.html";
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
+const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
@@ -116,16 +117,32 @@ function setHelperMessage(helperEl, message, show) {
 }
 
 async function fetchCodeSuggestions(prefix) {
-  if (!supabaseClient) return [];
   const query = normalizeCode(prefix);
   if (!query) return [];
+  if (supabaseClient) {
+    try {
+      const { data } = await supabaseClient
+        .from("playlists")
+        .select("code, playlist_name")
+        .ilike("code", `${query}%`)
+        .limit(5);
+      if (Array.isArray(data) && data.length) return data;
+    } catch {
+      // Fall back to edge function when direct query is blocked by policies.
+    }
+  }
   try {
-    const { data } = await supabaseClient
-      .from("playlists")
-      .select("code, playlist_name")
-      .ilike("code", `${query}%`)
-      .limit(5);
-    return data || [];
+    const res = await fetch(`${FUNCTIONS_URL}/playlist-suggestions`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefix: query }),
+    });
+    if (!res.ok) return [];
+    const payload = await res.json().catch(() => ({}));
+    return Array.isArray(payload?.items) ? payload.items : [];
   } catch {
     return [];
   }
