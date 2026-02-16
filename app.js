@@ -78,12 +78,6 @@ const infoOk = document.getElementById("infoOk");
 const closeInfo = document.getElementById("closeInfo");
 let currentAuthUser = null;
 
-if (supabaseClient) {
-  // Avoid showing a false "logged out" state before auth boot finishes.
-  if (loginBtn) loginBtn.classList.add("is-hidden");
-  if (userMenu) userMenu.classList.add("is-hidden");
-}
-
 function readStoredAuthUser() {
   const extractUser = (value) => {
     if (!value) return null;
@@ -452,6 +446,14 @@ function updateUserStatus(user) {
   userMenu.classList.remove("is-hidden");
   if (guestInlineClose) guestInlineClose.classList.add("is-hidden");
   if (guestAuth) guestAuth.classList.add("is-hidden");
+}
+
+function forceTopbarFallback() {
+  if (!loginBtn || !userMenu) return;
+  const bothHidden = loginBtn.classList.contains("is-hidden") && userMenu.classList.contains("is-hidden");
+  if (!bothHidden) return;
+  const storedUser = readStoredAuthUser();
+  updateUserStatus(storedUser || null);
 }
 
 function parseRoute() {
@@ -1057,6 +1059,8 @@ if (userDropdown) {
 }
 
 if (supabaseClient) {
+  setTimeout(forceTopbarFallback, 3500);
+  setTimeout(forceTopbarFallback, 8000);
   completeOAuthRedirect().finally(async () => {
     const bootSession = await new Promise((resolve) => {
       let resolved = false;
