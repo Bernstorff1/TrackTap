@@ -8,70 +8,10 @@ const scoreboardSongs = document.getElementById("scoreboardSongs");
 const menuBtnScore = document.getElementById("menuBtnScore");
 const userAvatarBtnScore = document.getElementById("userAvatarBtnScore");
 const userDropdownScore = document.getElementById("userDropdownScore");
+
 const PREV_KEY = "tapster_prev";
-
-let supabaseClient = window.supabase
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
-    })
-  : null;
-
-function loadScript(src, timeoutMs = 4000) {
-  return new Promise((resolve) => {
-    const existing = document.querySelector(`script[data-codex-src="${src}"]`);
-    if (existing) {
-      if (window.supabase) {
-        resolve(true);
-        return;
-      }
-      existing.addEventListener("load", () => resolve(!!window.supabase), { once: true });
-      existing.addEventListener("error", () => resolve(false), { once: true });
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.dataset.codexSrc = src;
-    let settled = false;
-    const done = (ok) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(ok);
-    };
-    script.onload = () => done(!!window.supabase);
-    script.onerror = () => done(false);
-    const timer = setTimeout(() => done(false), timeoutMs);
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureSupabaseClient() {
-  if (supabaseClient) return supabaseClient;
-  const urls = [
-    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
-    "https://unpkg.com/@supabase/supabase-js@2",
-  ];
-  for (const url of urls) {
-    if (window.supabase) break;
-    await loadScript(url, 4500);
-  }
-  if (!window.supabase) return null;
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
-  });
-  return supabaseClient;
-}
-
-function toggleUserMenu() {
-  if (!userDropdownScore) return;
-  userDropdownScore.classList.toggle("is-hidden");
-}
-
-function closeUserMenu() {
-  if (!userDropdownScore) return;
-  userDropdownScore.classList.add("is-hidden");
-}
+const AUTH_STORAGE_SUFFIX = "-auth-token";
+let supabaseClient = null;
 
 function deriveAccountName(user) {
   const metadata = user?.user_metadata || {};
@@ -85,98 +25,60 @@ function deriveAccountName(user) {
   return String(emailLocal || "User").trim() || "User";
 }
 
-function readStoredAuthUser() {
-  const extractUser = (value) => {
-    if (!value) return null;
-    if (value?.user?.id) return value.user;
-    if (value?.id && value?.aud) return value;
-    return null;
-  };
-  const parseRaw = (raw) => {
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          const nested =
-            extractUser(item) ||
-            extractUser(item?.currentSession) ||
-            extractUser(item?.session) ||
-            extractUser(item?.data?.session);
-          if (nested) return nested;
-        }
-      }
-      return (
-        extractUser(parsed) ||
-        extractUser(parsed?.currentSession) ||
-        extractUser(parsed?.session) ||
-        extractUser(parsed?.data?.session)
-      );
-    } catch {
-      return null;
-    }
-  };
-  const readFromStorage = (store) => {
-    if (!store) return null;
-    try {
-      const keys = Object.keys(store).filter(
-        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
-      );
-      for (const key of keys) {
-        const user = parseRaw(store.getItem(key));
-        if (user?.id) return user;
-      }
-    } catch {
-      // ignore storage read errors
-    }
-    return null;
-  };
-  return readFromStorage(localStorage) || readFromStorage(sessionStorage);
-}
-
 function readStoredAuthSession() {
-  const extractSession = (value) => {
-    if (!value) return null;
-    if (value?.access_token && value?.refresh_token) return value;
-    if (value?.currentSession?.access_token && value?.currentSession?.refresh_token) return value.currentSession;
-    if (value?.session?.access_token && value?.session?.refresh_token) return value.session;
-    if (value?.data?.session?.access_token && value?.data?.session?.refresh_token) return value.data.session;
-    return null;
-  };
   const parseRaw = (raw) => {
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         for (const item of parsed) {
-          const session = extractSession(item);
+          const session =
+            item?.access_token && item?.refresh_token
+              ? item
+              : item?.currentSession?.access_token && item?.currentSession?.refresh_token
+                ? item.currentSession
+                : item?.session?.access_token && item?.session?.refresh_token
+                  ? item.session
+                  : item?.data?.session?.access_token && item?.data?.session?.refresh_token
+                    ? item.data.session
+                    : null;
           if (session) return session;
         }
       }
-      return extractSession(parsed);
+      if (parsed?.access_token && parsed?.refresh_token) return parsed;
+      if (parsed?.currentSession?.access_token && parsed?.currentSession?.refresh_token) {
+        return parsed.currentSession;
+      }
+      if (parsed?.session?.access_token && parsed?.session?.refresh_token) return parsed.session;
+      if (parsed?.data?.session?.access_token && parsed?.data?.session?.refresh_token) {
+        return parsed.data.session;
+      }
+      return null;
     } catch {
       return null;
     }
   };
+
   const readFromStorage = (store) => {
     if (!store) return null;
     try {
       const keys = Object.keys(store).filter(
-        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+        (key) => key.startsWith("sb-") && key.endsWith(AUTH_STORAGE_SUFFIX)
       );
       for (const key of keys) {
         const session = parseRaw(store.getItem(key));
         if (session?.access_token && session?.refresh_token) return session;
       }
     } catch {
-      // ignore storage read errors
+      // ignore
     }
     return null;
   };
+
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
-async function callAuthWithTimeout(run, timeoutMs = 5000) {
+async function authCall(run, timeoutMs = 6000) {
   try {
     return await Promise.race([
       run(),
@@ -187,89 +89,162 @@ async function callAuthWithTimeout(run, timeoutMs = 5000) {
   }
 }
 
-async function getSessionUserWithRefresh() {
-  try {
-    if (!supabaseClient) return null;
-    const sessionResult = await callAuthWithTimeout(() => supabaseClient.auth.getSession());
-    const sessionUser = sessionResult?.data?.session?.user || null;
-    if (sessionUser) return sessionUser;
-
-    const refreshed = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession());
-    const refreshedUser = refreshed?.data?.session?.user || null;
-    if (refreshedUser) return refreshedUser;
-
-    const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
-    if (fetchedUser?.data?.user) return fetchedUser.data.user;
-    const storedSession = readStoredAuthSession();
-    if (storedSession?.access_token && storedSession?.refresh_token) {
-      const restored = await callAuthWithTimeout(
-        () =>
-          supabaseClient.auth.setSession({
-            access_token: storedSession.access_token,
-            refresh_token: storedSession.refresh_token,
-          }),
-        2500
-      );
-      const restoredUser = restored?.data?.session?.user || null;
-      if (restoredUser) return restoredUser;
-    }
-    return await new Promise((resolve) => {
-      let resolved = false;
-      let timer = null;
-      let subscription = null;
-      const finish = (user) => {
-        if (resolved) return;
-        resolved = true;
-        if (timer) clearTimeout(timer);
-        subscription?.unsubscribe();
-        resolve(user || null);
-      };
-      const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-        if (!session?.user) return;
-        finish(session.user);
-      });
-      subscription = authData?.subscription || null;
-      timer = setTimeout(async () => {
-        const lateSession = await callAuthWithTimeout(() => supabaseClient.auth.getSession(), 1800);
-        if (lateSession?.data?.session?.user) {
-          finish(lateSession.data.session.user);
-          return;
-        }
-        const lateUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser(), 1800);
-        if (lateUser?.data?.user) {
-          finish(lateUser.data.user);
-          return;
-        }
-        const lateStoredSession = readStoredAuthSession();
-        if (lateStoredSession?.access_token && lateStoredSession?.refresh_token) {
-          const restored = await callAuthWithTimeout(
-            () =>
-              supabaseClient.auth.setSession({
-                access_token: lateStoredSession.access_token,
-                refresh_token: lateStoredSession.refresh_token,
-              }),
-            2500
-          );
-          if (restored?.data?.session?.user) {
-            finish(restored.data.session.user);
-            return;
-          }
-        }
-        finish(null);
-      }, 9000);
-    });
-  } catch {
-    return readStoredAuthUser();
-  }
+function ensureSupabase() {
+  if (supabaseClient) return supabaseClient;
+  if (!window.supabase) return null;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
+  });
+  return supabaseClient;
 }
 
-async function syncProfileNameFromAuth(user) {
-  if (!supabaseClient || !user) return;
+async function getStableSessionUser() {
+  const client = ensureSupabase();
+  if (!client) return null;
+
+  const sessionResult = await authCall(() => client.auth.getSession());
+  const sessionUser = sessionResult?.data?.session?.user || null;
+  if (sessionUser) return sessionUser;
+
+  const refreshed = await authCall(() => client.auth.refreshSession());
+  const refreshedUser = refreshed?.data?.session?.user || null;
+  if (refreshedUser) return refreshedUser;
+
+  const fetchedUser = await authCall(() => client.auth.getUser());
+  if (fetchedUser?.data?.user) return fetchedUser.data.user;
+
+  const storedSession = readStoredAuthSession();
+  if (storedSession?.access_token && storedSession?.refresh_token) {
+    const restored = await authCall(
+      () =>
+        client.auth.setSession({
+          access_token: storedSession.access_token,
+          refresh_token: storedSession.refresh_token,
+        }),
+      7000
+    );
+    const restoredUser = restored?.data?.session?.user || null;
+    if (restoredUser) return restoredUser;
+  }
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    let subscription = null;
+
+    const finish = (user) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      subscription?.unsubscribe();
+      resolve(user || null);
+    };
+
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) return;
+      finish(session.user);
+    });
+    subscription = data?.subscription || null;
+
+    timer = setTimeout(async () => {
+      const lateSession = await authCall(() => client.auth.getSession(), 3000);
+      if (lateSession?.data?.session?.user) {
+        finish(lateSession.data.session.user);
+        return;
+      }
+      const lateUser = await authCall(() => client.auth.getUser(), 3000);
+      if (lateUser?.data?.user) {
+        finish(lateUser.data.user);
+        return;
+      }
+      finish(null);
+    }, 10000);
+  });
+}
+
+function renderList(element, itemsHtml, fallback) {
+  if (!element) return;
+  if (!itemsHtml) {
+    element.innerHTML = `<div class="playlist-meta">${fallback}</div>`;
+    return;
+  }
+  element.innerHTML = itemsHtml;
+}
+
+function setAuthUiLoggedOut() {
+  if (userAvatarBtnScore) userAvatarBtnScore.classList.add("is-hidden");
+  if (menuBtnScore) {
+    menuBtnScore.classList.remove("is-hidden");
+    menuBtnScore.textContent = "Log in";
+  }
+  renderList(scoreboardList, "", "Session expired. Please log in again.");
+  renderList(scoreboardPlaylists, "", "Session expired. Please log in again.");
+  renderList(scoreboardSongs, "", "Session expired. Please log in again.");
+}
+
+function setAuthUiLoggedIn(user) {
+  if (!userAvatarBtnScore || !menuBtnScore) return;
   const accountName = deriveAccountName(user);
-  if (!accountName) return;
+  const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+  userAvatarBtnScore.textContent = initial;
+  userAvatarBtnScore.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
+  userAvatarBtnScore.classList.remove("is-hidden");
+  menuBtnScore.classList.add("is-hidden");
+}
+
+function toggleUserMenu() {
+  if (!userDropdownScore) return;
+  userDropdownScore.classList.toggle("is-hidden");
+}
+
+function closeUserMenu() {
+  if (!userDropdownScore) return;
+  userDropdownScore.classList.add("is-hidden");
+}
+
+async function signOut() {
+  const client = ensureSupabase();
+  if (!client) return;
+  try {
+    await client.auth.signOut({ scope: "global" });
+  } catch {
+    // ignore
+  }
+  try {
+    await client.auth.signOut({ scope: "local" });
+  } catch {
+    // ignore
+  }
+  try {
+    Object.keys(localStorage)
+      .filter(
+        (key) =>
+          key.startsWith("sb-") ||
+          key.includes("supabase.auth") ||
+          key.includes("supabase-session")
+      )
+      .forEach((key) => localStorage.removeItem(key));
+    Object.keys(sessionStorage)
+      .filter(
+        (key) =>
+          key.startsWith("sb-") ||
+          key.includes("supabase.auth") ||
+          key.includes("supabase-session")
+      )
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // ignore
+  }
+  window.location.replace("index.html?logout=1");
+}
+
+async function ensureProfileRow(user) {
+  const client = ensureSupabase();
+  if (!client || !user) return;
+  const accountName = deriveAccountName(user);
   const now = new Date().toISOString();
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await client
       .from("profiles")
       .select("display_name")
       .eq("id", user.id)
@@ -277,7 +252,7 @@ async function syncProfileNameFromAuth(user) {
     if (error) return;
     const currentName = String(data?.display_name || "").trim();
     if (!data) {
-      await supabaseClient.from("profiles").insert({
+      await client.from("profiles").insert({
         id: user.id,
         display_name: accountName,
         credits: 10,
@@ -285,371 +260,295 @@ async function syncProfileNameFromAuth(user) {
       });
       return;
     }
-    if (currentName !== accountName) {
-      await supabaseClient
+    if (accountName && currentName !== accountName) {
+      await client
         .from("profiles")
         .update({ display_name: accountName, updated_at: now })
         .eq("id", user.id);
     }
   } catch {
-    // ignore profile sync errors
+    // ignore
   }
 }
 
-function updateUserMenu(user) {
-  if (!menuBtnScore || !userAvatarBtnScore) return;
-  if (user) {
-    const accountName = deriveAccountName(user);
-    const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
-    userAvatarBtnScore.textContent = initial;
-    userAvatarBtnScore.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
-    userAvatarBtnScore.classList.remove("is-hidden");
-    menuBtnScore.classList.add("is-hidden");
-  } else {
-    userAvatarBtnScore.classList.add("is-hidden");
-    menuBtnScore.classList.add("is-hidden");
-  }
-}
-
-async function signOut() {
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  if (!supabaseClient) return;
-  try {
-    await Promise.race([
-      (async () => {
-        try {
-          await supabaseClient.auth.signOut({ scope: "global" });
-        } catch {
-          // ignore
-        }
-        try {
-          await supabaseClient.auth.signOut({ scope: "local" });
-        } catch {
-          // ignore
-        }
-      })(),
-      wait(2500),
-    ]);
-  } finally {
-    try {
-      Object.keys(localStorage)
-        .filter(
-          (key) =>
-            key.startsWith("sb-") ||
-            key.includes("supabase.auth") ||
-            key.includes("supabase-session")
-        )
-        .forEach((key) => localStorage.removeItem(key));
-      Object.keys(sessionStorage)
-        .filter(
-          (key) =>
-            key.startsWith("sb-") ||
-            key.includes("supabase.auth") ||
-            key.includes("supabase-session")
-        )
-        .forEach((key) => sessionStorage.removeItem(key));
-    } catch {
-      // ignore
-    }
-    window.location.replace("index.html?logout=1");
-  }
-}
-
-function renderEmpty(message) {
-  if (!scoreboardList) return;
-  scoreboardList.innerHTML = `<div class="playlist-meta">${message}</div>`;
-}
-
-function renderEmptyPlaylists(message) {
-  if (!scoreboardPlaylists) return;
-  scoreboardPlaylists.innerHTML = `<div class="playlist-meta">${message}</div>`;
-}
-
-function renderEmptySongs(message) {
-  if (!scoreboardSongs) return;
-  scoreboardSongs.innerHTML = `<div class="playlist-meta">${message}</div>`;
-}
-
-async function loadScoreboard() {
-  const client = await ensureSupabaseClient();
-  if (!client) {
-    renderEmpty("Could not load scoreboard.");
-    renderEmptyPlaylists("Could not load scoreboard.");
-    renderEmptySongs("Could not load scoreboard.");
-    return;
-  }
-  let user = await getSessionUserWithRefresh();
-  if (!user) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    user = await getSessionUserWithRefresh();
-  }
-  updateUserMenu(user);
-  if (!user) {
-    renderEmpty("Session expired. Please log in again.");
-    renderEmptyPlaylists("Session expired. Please log in again.");
-    renderEmptySongs("Session expired. Please log in again.");
-    return;
-  }
-  await syncProfileNameFromAuth(user);
-  updateUserMenu(user);
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: rows, error } = await supabaseClient
-    .from("requests")
-    .select("requester_id, room_id, upvotes, paid_boosts_up, paid_boosts, created_at")
-    .gte("created_at", since)
-    .not("requester_id", "is", null);
-
-  const { data: songRows, error: songsError } = await supabaseClient
-    .from("requests")
-    .select("track_title, artist, room_id, upvotes");
-
-  if (error) {
-    renderEmpty("Could not fetch scoreboard.");
-    renderEmptyPlaylists("Could not fetch scoreboard.");
-  } else if (!rows || rows.length === 0) {
-    renderEmpty("No data yet.");
-    renderEmptyPlaylists("No data yet.");
-  } else {
-    const totals = new Map();
-    rows.forEach((row) => {
-      const id = row.requester_id;
-      if (!id) return;
-      const boosted = Number(row.paid_boosts_up ?? row.paid_boosts ?? 0);
-      const upvotes = Number(row.upvotes ?? 0);
-      const organic = Math.max(0, upvotes - boosted);
-      const current = totals.get(id) || { total: 0, organic: 0, boosted: 0 };
-      current.total += upvotes;
-      current.organic += organic;
-      current.boosted += boosted;
-      totals.set(id, current);
-    });
-
-    const ids = Array.from(totals.keys());
-    const { data: profiles } = await supabaseClient
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", ids);
-    const nameMap = new Map();
-    (profiles || []).forEach((row) => nameMap.set(row.id, row.display_name || "User"));
-
-    const sorted = ids
-      .map((id) => ({ id, ...totals.get(id) }))
-      .sort(
-        (a, b) =>
-          (b.organic + b.boosted) - (a.organic + a.boosted) ||
-          b.organic - a.organic
-      );
-
-    scoreboardList.innerHTML = sorted
-      .slice(0, 5)
-      .map(
-        (item, index) => `
-          <div class="playlist-item clickable">
-            <div class="playlist-name">${index + 1}. ${nameMap.get(item.id) || "User"}</div>
-            <div class="playlist-meta">
-              Upvotes: ${item.organic} · Boosts: ${item.boosted}
-            </div>
-          </div>
-        `
-      )
-      .join("");
-
-    const playlistTotals = new Map();
-    rows.forEach((row) => {
-      const roomId = row.room_id;
-      if (!roomId) return;
-      const boosted = Number(row.paid_boosts_up ?? row.paid_boosts ?? 0);
-      const upvotes = Number(row.upvotes ?? 0);
-      const organic = Math.max(0, upvotes - boosted);
-      const current = playlistTotals.get(roomId) || { total: 0, organic: 0, boosted: 0, songs: 0 };
-      current.total += upvotes;
-      current.organic += organic;
-      current.boosted += boosted;
-      current.songs += 1;
-      playlistTotals.set(roomId, current);
-    });
-
-    const playlistIds = Array.from(playlistTotals.keys());
-    const { data: playlistRows } = await supabaseClient
-      .from("playlists")
-      .select("code, playlist_name")
-      .in("code", playlistIds);
-    const playlistNameMap = new Map();
-    (playlistRows || []).forEach((row) =>
-      playlistNameMap.set(row.code, row.playlist_name || row.code)
-    );
-
-    const validPlaylistIds = playlistIds.filter((id) => playlistNameMap.has(id));
-    const playlistSorted = validPlaylistIds
-      .map((id) => ({ id, ...playlistTotals.get(id) }))
-      .sort(
-        (a, b) =>
-          (b.organic + b.boosted) - (a.organic + a.boosted) ||
-          b.organic - a.organic
-      );
-
-    if (!playlistSorted.length) {
-      renderEmptyPlaylists("No data yet.");
-    } else {
-      scoreboardPlaylists.innerHTML = playlistSorted
-        .slice(0, 5)
-        .map(
-          (item, index) => `
-            <div class="playlist-item clickable" data-code="${item.id}">
-              <div class="playlist-name">${index + 1}. ${playlistNameMap.get(item.id) || item.id}</div>
-              <div class="playlist-meta">
-                Upvotes: ${item.organic} · Boosts: ${item.boosted} · Tracks: ${item.songs}
-              </div>
-            </div>
-          `
-        )
-        .join("");
-
-      scoreboardPlaylists.querySelectorAll(".playlist-item[data-code]").forEach((item) => {
-        item.addEventListener("click", () => {
-          const code = item.getAttribute("data-code");
-          if (!code) return;
-          window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
-        });
-      });
-    }
-  }
-
-  if (songsError) {
-    renderEmptySongs("Could not fetch top songs.");
-    return;
-  }
-  if (!songRows || !songRows.length) {
-    renderEmptySongs("No song data yet.");
+async function loadTopUsers(rows) {
+  const client = ensureSupabase();
+  if (!rows.length) {
+    renderList(scoreboardList, "", "No data yet.");
     return;
   }
 
-  const songTotals = new Map();
-  songRows.forEach((row) => {
-    const title = String(row.track_title || "").trim();
-    const artist = String(row.artist || "").trim();
-    if (!title) return;
-    const key = `${title.toLowerCase()}::${artist.toLowerCase()}`;
+  const totals = new Map();
+  rows.forEach((row) => {
+    const id = row.requester_id;
+    if (!id) return;
+    const boosted = Number(row.paid_boosts_up ?? row.paid_boosts ?? 0);
     const upvotes = Number(row.upvotes ?? 0);
-    const roomId = String(row.room_id || "").trim();
-    const current = songTotals.get(key) || {
-      title,
-      artist,
-      upvotes: 0,
-      requests: 0,
-      playlistSet: new Set(),
-    };
-    current.upvotes += upvotes;
-    current.requests += 1;
-    if (roomId) current.playlistSet.add(roomId);
-    songTotals.set(key, current);
+    const organic = Math.max(0, upvotes - boosted);
+    const current = totals.get(id) || { organic: 0, boosted: 0 };
+    current.organic += organic;
+    current.boosted += boosted;
+    totals.set(id, current);
   });
 
-  const songsSorted = Array.from(songTotals.values()).sort(
-    (a, b) =>
-      b.upvotes - a.upvotes ||
-      b.requests - a.requests ||
-      a.title.localeCompare(b.title)
-  );
-
-  if (!songsSorted.length) {
-    renderEmptySongs("No song data yet.");
-    return;
+  const ids = Array.from(totals.keys());
+  let profiles = [];
+  if (ids.length) {
+    try {
+      const { data } = await client.from("profiles").select("id, display_name").in("id", ids);
+      profiles = data || [];
+    } catch {
+      profiles = [];
+    }
   }
 
-  if (!scoreboardSongs) return;
-  scoreboardSongs.innerHTML = songsSorted
-    .slice(0, 5)
+  const nameMap = new Map();
+  profiles.forEach((row) => nameMap.set(row.id, row.display_name || "User"));
+
+  const sorted = ids
+    .map((id) => ({ id, ...totals.get(id) }))
+    .sort((a, b) => (b.organic + b.boosted) - (a.organic + a.boosted) || b.organic - a.organic)
+    .slice(0, 5);
+
+  const html = sorted
     .map(
       (item, index) => `
         <div class="playlist-item clickable">
-          <div>
-            <div class="playlist-name">${index + 1}. ${item.title}</div>
-            <div class="playlist-meta">${item.artist || "Unknown artist"}</div>
-            <div class="playlist-meta">
-              Upvotes: ${item.upvotes} · Requests: ${item.requests} · Playlists: ${item.playlistSet.size}
-            </div>
-          </div>
+          <div class="playlist-name">${index + 1}. ${nameMap.get(item.id) || "User"}</div>
+          <div class="playlist-meta">Upvotes: ${item.organic} · Boosts: ${item.boosted}</div>
         </div>
       `
     )
     .join("");
+
+  renderList(scoreboardList, html, "No data yet.");
 }
 
-loadScoreboard().catch(() => {
-  renderEmpty("Could not fetch scoreboard.");
-  renderEmptyPlaylists("Could not fetch scoreboard.");
-  renderEmptySongs("Could not fetch scoreboard.");
-});
-
-if (menuBtnScore) menuBtnScore.addEventListener("click", toggleUserMenu);
-if (userAvatarBtnScore) userAvatarBtnScore.addEventListener("click", toggleUserMenu);
-document.addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof Element)) return;
-  if (
-    (menuBtnScore && menuBtnScore.contains(target)) ||
-    (userAvatarBtnScore && userAvatarBtnScore.contains(target)) ||
-    (userDropdownScore && userDropdownScore.contains(target))
-  )
+async function loadTopPlaylists(rows) {
+  const client = ensureSupabase();
+  if (!rows.length) {
+    renderList(scoreboardPlaylists, "", "No data yet.");
     return;
-  closeUserMenu();
-});
+  }
 
-  if (userDropdownScore) {
-    userDropdownScore.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const action = target.getAttribute("data-action");
-      if (!action) return;
-      if (action === "create-playlist") {
-        sessionStorage.setItem("tapster_open_host", "true");
-        window.location.assign("index.html");
+  const playlistTotals = new Map();
+  rows.forEach((row) => {
+    const roomId = String(row.room_id || "").trim();
+    if (!roomId) return;
+    const boosted = Number(row.paid_boosts_up ?? row.paid_boosts ?? 0);
+    const upvotes = Number(row.upvotes ?? 0);
+    const organic = Math.max(0, upvotes - boosted);
+    const current = playlistTotals.get(roomId) || { organic: 0, boosted: 0, songs: 0 };
+    current.organic += organic;
+    current.boosted += boosted;
+    current.songs += 1;
+    playlistTotals.set(roomId, current);
+  });
+
+  const playlistIds = Array.from(playlistTotals.keys());
+  let playlistRows = [];
+  if (playlistIds.length) {
+    try {
+      const { data } = await client
+        .from("playlists")
+        .select("code, playlist_name")
+        .in("code", playlistIds);
+      playlistRows = data || [];
+    } catch {
+      playlistRows = [];
+    }
+  }
+
+  const playlistNameMap = new Map();
+  playlistRows.forEach((row) => playlistNameMap.set(row.code, row.playlist_name || row.code));
+
+  const sorted = playlistIds
+    .filter((id) => playlistNameMap.has(id))
+    .map((id) => ({ id, ...playlistTotals.get(id) }))
+    .sort((a, b) => (b.organic + b.boosted) - (a.organic + a.boosted) || b.organic - a.organic)
+    .slice(0, 5);
+
+  const html = sorted
+    .map(
+      (item, index) => `
+        <div class="playlist-item clickable" data-code="${item.id}">
+          <div class="playlist-name">${index + 1}. ${playlistNameMap.get(item.id) || item.id}</div>
+          <div class="playlist-meta">Upvotes: ${item.organic} · Boosts: ${item.boosted} · Tracks: ${item.songs}</div>
+        </div>
+      `
+    )
+    .join("");
+
+  renderList(scoreboardPlaylists, html, "No data yet.");
+
+  if (scoreboardPlaylists) {
+    scoreboardPlaylists.querySelectorAll(".playlist-item[data-code]").forEach((item) => {
+      item.addEventListener("click", () => {
+        const code = item.getAttribute("data-code");
+        if (!code) return;
+        window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
+      });
+    });
+  }
+}
+
+async function loadTopSongs() {
+  const client = ensureSupabase();
+  let rows = [];
+  try {
+    const { data } = await client
+      .from("requests")
+      .select("track_title, artist, room_id, upvotes");
+    rows = data || [];
+  } catch {
+    renderList(scoreboardSongs, "", "Could not fetch top songs.");
+    return;
+  }
+
+  if (!rows.length) {
+    renderList(scoreboardSongs, "", "No song data yet.");
+    return;
+  }
+
+  const totals = new Map();
+  rows.forEach((row) => {
+    const title = String(row.track_title || "").trim();
+    const artist = String(row.artist || "").trim();
+    if (!title) return;
+
+    const key = `${title.toLowerCase()}::${artist.toLowerCase()}`;
+    const current = totals.get(key) || {
+      title,
+      artist,
+      upvotes: 0,
+      requests: 0,
+      playlists: new Set(),
+    };
+
+    current.upvotes += Number(row.upvotes ?? 0);
+    current.requests += 1;
+
+    const roomId = String(row.room_id || "").trim();
+    if (roomId) current.playlists.add(roomId);
+
+    totals.set(key, current);
+  });
+
+  const sorted = Array.from(totals.values())
+    .sort((a, b) => b.upvotes - a.upvotes || b.requests - a.requests || a.title.localeCompare(b.title))
+    .slice(0, 5);
+
+  const html = sorted
+    .map(
+      (item, index) => `
+        <div class="playlist-item clickable">
+          <div class="playlist-name">${index + 1}. ${item.title}</div>
+          <div class="playlist-meta">${item.artist || "Unknown artist"}</div>
+          <div class="playlist-meta">Upvotes: ${item.upvotes} · Requests: ${item.requests} · Playlists: ${item.playlists.size}</div>
+        </div>
+      `
+    )
+    .join("");
+
+  renderList(scoreboardSongs, html, "No song data yet.");
+}
+
+async function loadScoreboardData() {
+  const client = ensureSupabase();
+  if (!client) {
+    renderList(scoreboardList, "", "Could not load scoreboard.");
+    renderList(scoreboardPlaylists, "", "Could not load scoreboard.");
+    renderList(scoreboardSongs, "", "Could not load scoreboard.");
+    return;
+  }
+
+  let user = await getStableSessionUser();
+  if (!user) {
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    user = await getStableSessionUser();
+  }
+
+  if (!user) {
+    setAuthUiLoggedOut();
+    return;
+  }
+
+  setAuthUiLoggedIn(user);
+  await ensureProfileRow(user);
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  let weeklyRows = [];
+  try {
+    const { data } = await client
+      .from("requests")
+      .select("requester_id, room_id, upvotes, paid_boosts_up, paid_boosts, created_at")
+      .gte("created_at", since)
+      .not("requester_id", "is", null);
+    weeklyRows = data || [];
+  } catch {
+    weeklyRows = [];
+  }
+
+  await Promise.allSettled([loadTopUsers(weeklyRows), loadTopPlaylists(weeklyRows), loadTopSongs()]);
+}
+
+function bindMenuEvents() {
+  if (menuBtnScore) {
+    menuBtnScore.addEventListener("click", () => {
+      if (menuBtnScore.textContent === "Log in") {
+        window.location.assign("index.html?login=1");
         return;
       }
-      if (action === "profile") {
-        sessionStorage.setItem(PREV_KEY, window.location.href);
-        window.location.assign("profile.html");
-        return;
-      }
-      if (action === "rules") {
-        window.location.assign("rules.html");
-        return;
-      }
+      toggleUserMenu();
+    });
+  }
+
+  if (userAvatarBtnScore) userAvatarBtnScore.addEventListener("click", toggleUserMenu);
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (
+      (menuBtnScore && menuBtnScore.contains(target)) ||
+      (userAvatarBtnScore && userAvatarBtnScore.contains(target)) ||
+      (userDropdownScore && userDropdownScore.contains(target))
+    ) {
+      return;
+    }
+    closeUserMenu();
+  });
+
+  if (!userDropdownScore) return;
+  userDropdownScore.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const action = target.getAttribute("data-action");
+    if (!action) return;
+
+    if (action === "create-playlist") {
+      sessionStorage.setItem("tapster_open_host", "true");
+      window.location.assign("index.html");
+      return;
+    }
+    if (action === "profile") {
+      sessionStorage.setItem(PREV_KEY, window.location.href);
+      window.location.assign("profile.html");
+      return;
+    }
+    if (action === "rules") {
+      window.location.assign("rules.html");
+      return;
+    }
     if (action === "logout") {
       signOut();
     }
   });
 }
 
-(async () => {
-  const client = await ensureSupabaseClient();
-  if (!client) {
-    updateUserMenu(null);
-    return;
-  }
-  getSessionUserWithRefresh().then((user) => {
-    if (!user) {
-      updateUserMenu(null);
-      return;
-    }
-    updateUserMenu(user);
-  });
-  client.auth.onAuthStateChange(async (_event, session) => {
-    const user = session?.user || null;
-    if (!user) {
-      const recoveredUser = await getSessionUserWithRefresh();
-      if (recoveredUser) {
-        updateUserMenu(recoveredUser);
-        return;
-      }
-      updateUserMenu(null);
-      renderEmpty("Session expired. Please log in again.");
-      renderEmptyPlaylists("Session expired. Please log in again.");
-      renderEmptySongs("Session expired. Please log in again.");
-      return;
-    }
-    await syncProfileNameFromAuth(user);
-    updateUserMenu(user);
-  });
-})();
+bindMenuEvents();
+loadScoreboardData().catch(() => {
+  renderList(scoreboardList, "", "Could not load scoreboard.");
+  renderList(scoreboardPlaylists, "", "Could not load scoreboard.");
+  renderList(scoreboardSongs, "", "Could not load scoreboard.");
+});
