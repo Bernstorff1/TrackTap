@@ -299,8 +299,10 @@ async function syncProfileNameFromAuth(user) {
 function updateUserMenu(user) {
   if (!menuBtnScore || !userAvatarBtnScore) return;
   if (user) {
-    userAvatarBtnScore.textContent = "☰";
-    userAvatarBtnScore.setAttribute("aria-label", "Menu");
+    const accountName = deriveAccountName(user);
+    const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+    userAvatarBtnScore.textContent = initial;
+    userAvatarBtnScore.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
     userAvatarBtnScore.classList.remove("is-hidden");
     menuBtnScore.classList.add("is-hidden");
   } else {

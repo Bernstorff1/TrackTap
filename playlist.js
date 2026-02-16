@@ -767,8 +767,10 @@ function updateProfileIcon(user) {
     menuBtn.classList.add("is-hidden");
     return;
   }
-  profileBtn.textContent = "☰";
-  profileBtn.setAttribute("aria-label", "Menu");
+  const accountName = deriveAccountName(user);
+  const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+  profileBtn.textContent = initial;
+  profileBtn.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
   profileBtn.classList.remove("is-hidden");
   loginBtn.classList.add("is-hidden");
   menuBtn.classList.add("is-hidden");

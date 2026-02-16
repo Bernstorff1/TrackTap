@@ -177,8 +177,10 @@ async function syncProfileNameFromAuth(user) {
 function updateUserMenu(user) {
   if (!menuBtnRules || !userAvatarBtnRules) return;
   if (user) {
-    userAvatarBtnRules.textContent = "☰";
-    userAvatarBtnRules.setAttribute("aria-label", "Menu");
+    const accountName = deriveAccountName(user);
+    const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+    userAvatarBtnRules.textContent = initial;
+    userAvatarBtnRules.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
     userAvatarBtnRules.classList.remove("is-hidden");
     menuBtnRules.classList.add("is-hidden");
   } else {

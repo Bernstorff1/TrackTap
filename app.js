@@ -441,8 +441,10 @@ function updateUserStatus(user) {
     if (guestAuth) guestAuth.classList.remove("is-hidden");
     return;
   }
-  userAvatarBtn.textContent = "☰";
-  userAvatarBtn.setAttribute("aria-label", "Menu");
+  const accountName = deriveAccountName(user);
+  const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+  userAvatarBtn.textContent = initial;
+  userAvatarBtn.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
   loginBtn.classList.add("is-hidden");
   userMenu.classList.remove("is-hidden");
   if (guestInlineClose) guestInlineClose.classList.add("is-hidden");

@@ -322,8 +322,10 @@ function closeUserMenu() {
 function updateUserMenu(user) {
   if (!menuBtnProfile || !userAvatarBtnProfile) return;
   if (user) {
-    userAvatarBtnProfile.textContent = "☰";
-    userAvatarBtnProfile.setAttribute("aria-label", "Menu");
+    const accountName = deriveAccountName(user);
+    const initial = String(accountName || "U").trim().charAt(0).toUpperCase() || "U";
+    userAvatarBtnProfile.textContent = initial;
+    userAvatarBtnProfile.setAttribute("aria-label", `Menu for ${accountName || "user"}`);
     userAvatarBtnProfile.classList.remove("is-hidden");
     menuBtnProfile.classList.add("is-hidden");
   } else {
