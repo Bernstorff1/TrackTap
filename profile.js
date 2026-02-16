@@ -19,6 +19,7 @@ const menuBtnProfile = document.getElementById("menuBtnProfile");
 const userAvatarBtnProfile = document.getElementById("userAvatarBtnProfile");
 const userDropdownProfile = document.getElementById("userDropdownProfile");
 const PREV_KEY = "tapster_prev";
+const profileBrandLogo = document.querySelector(".brand-logo");
 
 function deriveAccountName(user) {
   const metadata = user?.user_metadata || {};
@@ -90,6 +91,35 @@ async function callAuthWithTimeout(run, timeoutMs = 2200) {
   } catch {
     return null;
   }
+}
+
+async function callWithTimeout(run, timeoutMs = 3500) {
+  try {
+    return await Promise.race([
+      run(),
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+function installLogoFallback() {
+  if (!profileBrandLogo) return;
+  profileBrandLogo.addEventListener(
+    "error",
+    () => {
+      const current = String(profileBrandLogo.getAttribute("src") || "");
+      if (!current.includes("Tapsterlogo.png")) {
+        profileBrandLogo.setAttribute("src", "assets/Tapsterlogo.png?v=2");
+        return;
+      }
+      if (!current.includes("tracktap-logo.svg")) {
+        profileBrandLogo.setAttribute("src", "assets/tracktap-logo.svg?v=2");
+      }
+    },
+    { once: true }
+  );
 }
 
 async function getSessionUserWithRefresh() {
@@ -246,19 +276,38 @@ async function loadProfile() {
     window.location.assign("index.html?login=1");
     return;
   }
-  await syncProfileNameFromAuth(user);
-  const { data: profile, error: profileError } = await supabaseClient
-    .from("profiles")
-    .select("credits")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (profileError) {
-    // ignore profile read errors for name/credits display
-  }
+
   const name = deriveAccountName(user);
-  updateUserMenu(user);
   profileName.textContent = name;
-  creditsTotal.textContent = String(Number(profile?.credits ?? 0));
+  updateUserMenu(user);
+
+  // Non-blocking sync so header/name UI never waits on DB.
+  syncProfileNameFromAuth(user);
+
+  const cachedCreditsKey = `tapster_profile_credits_${user.id}`;
+  const cachedCredits = Number(localStorage.getItem(cachedCreditsKey) || "0");
+  if (Number.isFinite(cachedCredits)) {
+    creditsTotal.textContent = String(cachedCredits);
+  }
+
+  const profileResult = await callWithTimeout(
+    () =>
+      supabaseClient
+        .from("profiles")
+        .select("credits")
+        .eq("id", user.id)
+        .maybeSingle(),
+    3500
+  );
+  const remoteCredits = Number(profileResult?.data?.credits ?? NaN);
+  if (Number.isFinite(remoteCredits)) {
+    creditsTotal.textContent = String(remoteCredits);
+    try {
+      localStorage.setItem(cachedCreditsKey, String(remoteCredits));
+    } catch {
+      // ignore storage errors
+    }
+  }
 
   if (
     receivedTotalsAllOrganic ||
@@ -266,10 +315,15 @@ async function loadProfile() {
     receivedTotalsWeekOrganic ||
     receivedTotalsWeekBoost
   ) {
-    const { data: allVotes } = await supabaseClient
-      .from("requests")
-      .select("upvotes, paid_boosts_up, paid_boosts, created_at")
-      .eq("requester_id", user.id);
+    const votesResult = await callWithTimeout(
+      () =>
+        supabaseClient
+          .from("requests")
+          .select("upvotes, paid_boosts_up, paid_boosts, created_at")
+          .eq("requester_id", user.id),
+      4500
+    );
+    const allVotes = votesResult?.data || [];
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const totalsAll = { organic: 0, boost: 0 };
@@ -305,11 +359,16 @@ async function loadProfile() {
     if (weekBoostBar) weekBoostBar.style.width = `${Math.round((totalsWeek.boost / weekTotal) * 100)}%`;
   }
 
-  const { data: rows } = await supabaseClient
-    .from("playlists")
-    .select("code, bar_name, playlist_name, created_at")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
+  const rowsResult = await callWithTimeout(
+    () =>
+      supabaseClient
+        .from("playlists")
+        .select("code, bar_name, playlist_name, created_at")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false }),
+    4500
+  );
+  const rows = rowsResult?.data || [];
 
   if (!rows || !rows.length) {
     profilePlaylists.innerHTML = "<div class=\"playlist-meta\">No playlists yet.</div>";
@@ -317,10 +376,15 @@ async function loadProfile() {
   }
 
   const codes = rows.map((row) => row.code);
-  const { data: interactions } = await supabaseClient
-    .from("requests")
-    .select("upvotes, room_id")
-    .in("room_id", codes);
+  const interactionsResult = await callWithTimeout(
+    () =>
+      supabaseClient
+        .from("requests")
+        .select("upvotes, room_id")
+        .in("room_id", codes),
+    4500
+  );
+  const interactions = interactionsResult?.data || [];
   const byRoom = (interactions || []).reduce((acc, row) => {
     const key = row.room_id;
     if (!key) return acc;
@@ -346,6 +410,7 @@ async function loadProfile() {
 }
 
 loadProfile();
+installLogoFallback();
 
 if (menuBtnProfile) menuBtnProfile.addEventListener("click", toggleUserMenu);
 if (userAvatarBtnProfile) userAvatarBtnProfile.addEventListener("click", toggleUserMenu);
