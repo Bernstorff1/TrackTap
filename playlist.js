@@ -2467,6 +2467,20 @@ async function exportPlayedToSpotify() {
         showInfo("Tapster could not match the played songs to Spotify tracks right now. Please try again shortly.");
         return;
       }
+      if (payload?.error === "all_tracks_rejected") {
+        const raw = String(payload?.details || "").trim();
+        const spotifyReason = raw ? raw.replace(/\s+/g, " ").slice(0, 220) : "";
+        if (spotifyReason) {
+          showInfo(
+            `Spotify created the playlist, but rejected all tracks. Details: ${spotifyReason}`
+          );
+        } else {
+          showInfo(
+            "Spotify created the playlist, but rejected all tracks for this account/region."
+          );
+        }
+        return;
+      }
       if (payload?.error === "spotify_not_connected" || payload?.error === "spotify_missing_access_token") {
         showInfo("Spotify session missing. Please reconnect Spotify and try again.");
         return;

@@ -19,6 +19,7 @@ type SpotifyPlaylist = {
   name?: string;
   description?: string;
   external_urls?: { spotify?: string };
+  owner?: { id?: string };
 };
 
 type RequestRow = {
@@ -26,6 +27,12 @@ type RequestRow = {
   artist?: string;
   spotify_app_url?: string;
   spotify_web_url?: string;
+};
+
+type ResolvedTrack = {
+  title: string;
+  artist: string;
+  uri: string;
 };
 
 type PlaylistRow = {
@@ -53,6 +60,12 @@ function parseTrackUri(track: InputTrack): string {
   const web = String(track?.webUrl || "").trim();
   const m = web.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]+)/);
   return m ? `spotify:track:${m[1]}` : "";
+}
+
+function parseTrackIdFromUri(uri: string): string {
+  const clean = String(uri || "").trim();
+  const m = clean.match(/^spotify:track:([A-Za-z0-9]+)$/);
+  return m ? m[1] : "";
 }
 
 function toInputTrack(row: RequestRow): InputTrack {
@@ -129,10 +142,72 @@ async function searchSpotifyTrackUri(tokens: string[], title: string, artist: st
   return "";
 }
 
+async function searchSpotifyTrackUriNoMarket(tokens: string[], title: string, artist: string): Promise<string> {
+  const titleSafe = String(title || "").trim();
+  const artistSafe = String(artist || "").trim();
+  const queries = [`${titleSafe} ${artistSafe}`.trim(), titleSafe].filter(Boolean);
+  if (!queries.length) return "";
+
+  for (const token of tokens.filter(Boolean)) {
+    for (const query of queries) {
+      const url = new URL("https://api.spotify.com/v1/search");
+      url.searchParams.set("type", "track");
+      url.searchParams.set("limit", "5");
+      url.searchParams.set("q", query);
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 429) continue;
+      if (!res.ok) continue;
+      const data = await res.json();
+      const items = Array.isArray(data?.tracks?.items) ? data.tracks.items : [];
+      const firstUri = String(items[0]?.uri || "");
+      if (firstUri.startsWith("spotify:track:")) return firstUri;
+    }
+  }
+  return "";
+}
+
+async function isTrackPlayableForToken(accessToken: string, uri: string): Promise<boolean> {
+  const trackId = parseTrackIdFromUri(uri);
+  if (!trackId) return false;
+  const res = await fetch(
+    `https://api.spotify.com/v1/tracks/${encodeURIComponent(trackId)}?market=from_token`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+  return res.ok;
+}
+
+async function getSpotifyUser(accessToken: string): Promise<{ id: string; country: string }> {
+  const res = await fetch("https://api.spotify.com/v1/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error("spotify_me_failed");
+  const data = await res.json();
+  return {
+    id: String(data?.id || "").trim(),
+    country: String(data?.country || "").trim().toUpperCase(),
+  };
+}
+
+async function getPlaylistMeta(accessToken: string, playlistId: string): Promise<SpotifyPlaylist | null> {
+  const url = new URL(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}`);
+  url.searchParams.set("fields", "id,name,uri,external_urls.spotify,owner.id");
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data as SpotifyPlaylist;
+}
+
 async function findRoomPlaylist(
   accessToken: string,
   roomId: string,
-  playlistName: string
+  playlistName: string,
+  ownerId: string
 ): Promise<SpotifyPlaylist | null> {
   const marker = `[tapster_room:${roomId}]`;
   const targetName = String(playlistName || "").trim().toLowerCase();
@@ -146,12 +221,15 @@ async function findRoomPlaylist(
     const data = await res.json();
     const items = Array.isArray(data?.items) ? data.items : [];
     const found = items.find((pl: SpotifyPlaylist) =>
+      String(pl?.owner?.id || "") === ownerId &&
       String(pl?.description || "").includes(marker)
     );
     if (found) return found;
     if (!nameMatch && targetName) {
       const byName = items.find(
-        (pl: SpotifyPlaylist) => String(pl?.name || "").trim().toLowerCase() === targetName
+        (pl: SpotifyPlaylist) =>
+          String(pl?.owner?.id || "") === ownerId &&
+          String(pl?.name || "").trim().toLowerCase() === targetName
       );
       if (byName) {
         nameMatch = byName;
@@ -276,6 +354,7 @@ Deno.serve(async (req) => {
   }
 
   let userSpotifyAccess = "";
+  let serviceSpotifyUserId = "";
   try {
     const refreshed = await refreshTokenFromRefreshToken(
       serviceRefreshToken,
@@ -314,6 +393,15 @@ Deno.serve(async (req) => {
   }
   const appTokenData = await appTokenRes.json();
   const appToken = String(appTokenData?.access_token || "");
+  try {
+    const me = await getSpotifyUser(userSpotifyAccess);
+    serviceSpotifyUserId = me.id;
+  } catch {
+    return new Response(JSON.stringify({ error: "service_spotify_profile_failed" }), {
+      status: 502,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const { data: roomExportRow, error: roomExportError } = await admin
     .from("spotify_room_exports")
@@ -338,9 +426,18 @@ Deno.serve(async (req) => {
   let playlistId = String(exportRow?.spotify_playlist_id || "");
   let playlistUrl = String(exportRow?.spotify_playlist_url || "");
   let playlistUri = String(exportRow?.spotify_playlist_uri || "");
+  if (playlistId) {
+    const meta = await getPlaylistMeta(userSpotifyAccess, playlistId);
+    const ownerId = String(meta?.owner?.id || "");
+    if (!meta || !ownerId || ownerId !== serviceSpotifyUserId) {
+      playlistId = "";
+      playlistUrl = "";
+      playlistUri = "";
+    }
+  }
 
   if (!playlistId) {
-    let playlist = await findRoomPlaylist(userSpotifyAccess, roomId, playlistName);
+    let playlist = await findRoomPlaylist(userSpotifyAccess, roomId, playlistName, serviceSpotifyUserId);
     if (!playlist) {
       const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
         method: "POST",
@@ -403,20 +500,36 @@ Deno.serve(async (req) => {
   }
 
   const uriSet = new Set<string>();
-  const orderedUris: string[] = [];
+  const resolvedTracks: ResolvedTrack[] = [];
   for (const track of tracks) {
+    const title = String(track?.title || "").trim();
+    const artist = String(track?.artist || "").trim();
     let uri = parseTrackUri(track);
+
+    // A URI from another market/account can exist but still be unavailable for
+    // the service account. Re-resolve against current token when needed.
+    if (uri) {
+      const playable = await isTrackPlayableForToken(userSpotifyAccess, uri);
+      if (!playable) {
+        uri = "";
+      }
+    }
+
     if (!uri) {
       uri = await searchSpotifyTrackUri(
         [userSpotifyAccess, appToken],
-        String(track?.title || ""),
-        String(track?.artist || "")
+        title,
+        artist
       );
+    }
+    if (!uri) {
+      uri = await searchSpotifyTrackUriNoMarket([userSpotifyAccess, appToken], title, artist);
     }
     if (!uri || uriSet.has(uri)) continue;
     uriSet.add(uri);
-    orderedUris.push(uri);
+    resolvedTracks.push({ title, artist, uri });
   }
+  const orderedUris = resolvedTracks.map((item) => item.uri);
   if (!orderedUris.length) {
     return new Response(JSON.stringify({ error: "no_matchable_tracks" }), {
       status: 400,
@@ -474,6 +587,9 @@ Deno.serve(async (req) => {
   let addedCount = 0;
   let skippedCount = 0;
   const insertedUris: string[] = [];
+  const rejectionSamples: string[] = [];
+  const resolvedByUri = new Map<string, ResolvedTrack>();
+  for (const item of resolvedTracks) resolvedByUri.set(item.uri, item);
   for (let i = 0; i < urisToAdd.length; i += 100) {
     const chunk = urisToAdd.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
@@ -522,6 +638,45 @@ Deno.serve(async (req) => {
             );
           }
           if (singleRes.status === 403 || singleRes.status === 404) {
+            const source = resolvedByUri.get(uri);
+            let retried = false;
+            if (source?.title) {
+              const fallbackUri =
+                (await searchSpotifyTrackUri([userSpotifyAccess], source.title, source.artist)) ||
+                (await searchSpotifyTrackUriNoMarket([userSpotifyAccess, appToken], source.title, source.artist));
+              if (fallbackUri && fallbackUri !== uri) {
+                const retryRes = await fetch(
+                  `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${userSpotifyAccess}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ uris: [fallbackUri] }),
+                  }
+                );
+                if (retryRes.ok) {
+                  addedCount += 1;
+                  insertedUris.push(fallbackUri);
+                  retried = true;
+                } else if (retryRes.status === 429) {
+                  return new Response(
+                    JSON.stringify({ error: "rate_limited", retryAfter: retryAfterSeconds(retryRes) }),
+                    {
+                      status: 429,
+                      headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    }
+                  );
+                } else {
+                  const retryDetails = await retryRes.text().catch(() => "");
+                  if (retryDetails) rejectionSamples.push(retryDetails.slice(0, 300));
+                }
+              }
+            }
+            if (retried) continue;
+            const details = await singleRes.text().catch(() => "");
+            if (details) rejectionSamples.push(details.slice(0, 300));
             skippedCount += 1;
             continue;
           }
@@ -541,6 +696,21 @@ Deno.serve(async (req) => {
     }
     addedCount += chunk.length;
     insertedUris.push(...chunk);
+  }
+
+  if (addedCount === 0 && skippedCount > 0) {
+    return new Response(
+      JSON.stringify({
+        error: "all_tracks_rejected",
+        details:
+          rejectionSamples[0] ||
+          "Spotify rejected all tracks for this account/market.",
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   if (insertedUris.length) {
