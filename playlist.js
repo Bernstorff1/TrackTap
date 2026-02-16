@@ -2477,8 +2477,14 @@ async function exportPlayedToSpotify() {
         skipped > 0 ? `Playlist added (${added} tracks, ${skipped} skipped)` : "Playlist added to Spotify",
         1400
       );
+    } else if (skipped > 0) {
+      showInfo(
+        "Spotify created the playlist, but could not add tracks. This usually means Spotify rejected the tracks for your account/region."
+      );
+      return;
     } else {
       showInfo("Spotify playlist is already up to date.");
+      return;
     }
     const playlistUrl = String(payload?.playlistUrl || "");
     const playlistUri = String(payload?.playlistUri || "");
