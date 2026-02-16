@@ -584,8 +584,16 @@ if (userDropdownProfile) {
   client.auth.onAuthStateChange(async (_event, session) => {
     const user = session?.user || null;
     if (!user) {
+      const recoveredUser = await getSessionUserWithRefresh();
+      if (recoveredUser) {
+        updateUserMenu(recoveredUser);
+        return;
+      }
       updateUserMenu(null);
-      window.location.assign("index.html?login=1");
+      if (profileName) profileName.textContent = "Session expired. Please log in again.";
+      if (profilePlaylists) {
+        profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Please log in to load playlists.</div>";
+      }
       return;
     }
     await syncProfileNameFromAuth(user);

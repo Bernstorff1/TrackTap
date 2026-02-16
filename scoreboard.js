@@ -630,8 +630,15 @@ document.addEventListener("click", (event) => {
   client.auth.onAuthStateChange(async (_event, session) => {
     const user = session?.user || null;
     if (!user) {
+      const recoveredUser = await getSessionUserWithRefresh();
+      if (recoveredUser) {
+        updateUserMenu(recoveredUser);
+        return;
+      }
       updateUserMenu(null);
-      window.location.assign("index.html?login=1");
+      renderEmpty("Session expired. Please log in again.");
+      renderEmptyPlaylists("Session expired. Please log in again.");
+      renderEmptySongs("Session expired. Please log in again.");
       return;
     }
     await syncProfileNameFromAuth(user);
