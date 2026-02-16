@@ -10,11 +10,58 @@ const userAvatarBtnScore = document.getElementById("userAvatarBtnScore");
 const userDropdownScore = document.getElementById("userDropdownScore");
 const PREV_KEY = "tapster_prev";
 
-const supabaseClient = window.supabase
+let supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
     })
   : null;
+
+function loadScript(src, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    const existing = document.querySelector(`script[data-codex-src="${src}"]`);
+    if (existing) {
+      if (window.supabase) {
+        resolve(true);
+        return;
+      }
+      existing.addEventListener("load", () => resolve(!!window.supabase), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.codexSrc = src;
+    let settled = false;
+    const done = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    script.onload = () => done(!!window.supabase);
+    script.onerror = () => done(false);
+    const timer = setTimeout(() => done(false), timeoutMs);
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+    "https://unpkg.com/@supabase/supabase-js@2",
+  ];
+  for (const url of urls) {
+    if (window.supabase) break;
+    await loadScript(url, 4500);
+  }
+  if (!window.supabase) return null;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
+  });
+  return supabaseClient;
+}
 
 function toggleUserMenu() {
   if (!userDropdownScore) return;
@@ -318,7 +365,13 @@ function renderEmptySongs(message) {
 }
 
 async function loadScoreboard() {
-  if (!supabaseClient) return;
+  const client = await ensureSupabaseClient();
+  if (!client) {
+    renderEmpty("Could not load scoreboard.");
+    renderEmptyPlaylists("Could not load scoreboard.");
+    renderEmptySongs("Could not load scoreboard.");
+    return;
+  }
   const user = await getSessionUserWithRefresh();
   updateUserMenu(user);
   if (!user) {
@@ -511,7 +564,11 @@ async function loadScoreboard() {
     .join("");
 }
 
-loadScoreboard();
+loadScoreboard().catch(() => {
+  renderEmpty("Could not fetch scoreboard.");
+  renderEmptyPlaylists("Could not fetch scoreboard.");
+  renderEmptySongs("Could not fetch scoreboard.");
+});
 
 if (menuBtnScore) menuBtnScore.addEventListener("click", toggleUserMenu);
 if (userAvatarBtnScore) userAvatarBtnScore.addEventListener("click", toggleUserMenu);
@@ -553,7 +610,12 @@ document.addEventListener("click", (event) => {
   });
 }
 
-if (supabaseClient) {
+(async () => {
+  const client = await ensureSupabaseClient();
+  if (!client) {
+    updateUserMenu(null);
+    return;
+  }
   getSessionUserWithRefresh().then((user) => {
     if (!user) {
       updateUserMenu(null);
@@ -561,7 +623,7 @@ if (supabaseClient) {
     }
     updateUserMenu(user);
   });
-  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+  client.auth.onAuthStateChange(async (_event, session) => {
     const user = session?.user || null;
     if (!user) {
       updateUserMenu(null);
@@ -571,4 +633,4 @@ if (supabaseClient) {
     await syncProfileNameFromAuth(user);
     updateUserMenu(user);
   });
-}
+})();

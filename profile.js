@@ -2,7 +2,7 @@ const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
 
-const supabaseClient = window.supabase
+let supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
     })
@@ -135,17 +135,6 @@ async function callAuthWithTimeout(run, timeoutMs = 2200) {
   }
 }
 
-async function callWithTimeout(run, timeoutMs = 3500) {
-  try {
-    return await Promise.race([
-      run(),
-      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-    ]);
-  } catch {
-    return null;
-  }
-}
-
 function installLogoFallback() {
   if (!profileBrandLogo) return;
   profileBrandLogo.addEventListener(
@@ -162,6 +151,53 @@ function installLogoFallback() {
     },
     { once: true }
   );
+}
+
+function loadScript(src, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    const existing = document.querySelector(`script[data-codex-src="${src}"]`);
+    if (existing) {
+      if (window.supabase) {
+        resolve(true);
+        return;
+      }
+      existing.addEventListener("load", () => resolve(!!window.supabase), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.codexSrc = src;
+    let settled = false;
+    const done = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    script.onload = () => done(!!window.supabase);
+    script.onerror = () => done(false);
+    const timer = setTimeout(() => done(false), timeoutMs);
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+    "https://unpkg.com/@supabase/supabase-js@2",
+  ];
+  for (const url of urls) {
+    if (window.supabase) break;
+    await loadScript(url, 4500);
+  }
+  if (!window.supabase) return null;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { detectSessionInUrl: true, persistSession: true, flowType: "pkce" },
+  });
+  return supabaseClient;
 }
 
 async function getSessionUserWithRefresh() {
@@ -337,7 +373,12 @@ async function signOut() {
 }
 
 async function loadProfile() {
-  if (!supabaseClient) return;
+  const client = await ensureSupabaseClient();
+  if (!client) {
+    profileName.textContent = "Could not load profile";
+    profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Could not load playlists.</div>";
+    return;
+  }
   const user = await getSessionUserWithRefresh();
   updateUserMenu(user || null);
   if (!user) {
@@ -358,23 +399,23 @@ async function loadProfile() {
     creditsTotal.textContent = String(cachedCredits);
   }
 
-  const profileResult = await callWithTimeout(
-    () =>
-      supabaseClient
-        .from("profiles")
-        .select("credits")
-        .eq("id", user.id)
-        .maybeSingle(),
-    3500
-  );
-  const remoteCredits = Number(profileResult?.data?.credits ?? NaN);
-  if (Number.isFinite(remoteCredits)) {
-    creditsTotal.textContent = String(remoteCredits);
-    try {
-      localStorage.setItem(cachedCreditsKey, String(remoteCredits));
-    } catch {
-      // ignore storage errors
+  try {
+    const { data: profileRow } = await supabaseClient
+      .from("profiles")
+      .select("credits")
+      .eq("id", user.id)
+      .maybeSingle();
+    const remoteCredits = Number(profileRow?.credits ?? NaN);
+    if (Number.isFinite(remoteCredits)) {
+      creditsTotal.textContent = String(remoteCredits);
+      try {
+        localStorage.setItem(cachedCreditsKey, String(remoteCredits));
+      } catch {
+        // ignore storage errors
+      }
     }
+  } catch {
+    // keep cached credits when remote profile fetch fails
   }
 
   if (
@@ -383,15 +424,16 @@ async function loadProfile() {
     receivedTotalsWeekOrganic ||
     receivedTotalsWeekBoost
   ) {
-    const votesResult = await callWithTimeout(
-      () =>
-        supabaseClient
-          .from("requests")
-          .select("upvotes, paid_boosts_up, paid_boosts, created_at")
-          .eq("requester_id", user.id),
-      4500
-    );
-    const allVotes = votesResult?.data || [];
+    let allVotes = [];
+    try {
+      const { data } = await supabaseClient
+        .from("requests")
+        .select("upvotes, paid_boosts_up, paid_boosts, created_at")
+        .eq("requester_id", user.id);
+      allVotes = data || [];
+    } catch {
+      allVotes = [];
+    }
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const totalsAll = { organic: 0, boost: 0 };
@@ -427,16 +469,18 @@ async function loadProfile() {
     if (weekBoostBar) weekBoostBar.style.width = `${Math.round((totalsWeek.boost / weekTotal) * 100)}%`;
   }
 
-  const rowsResult = await callWithTimeout(
-    () =>
-      supabaseClient
-        .from("playlists")
-        .select("code, bar_name, playlist_name, created_at")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false }),
-    4500
-  );
-  const rows = rowsResult?.data || [];
+  let rows = [];
+  try {
+    const { data } = await supabaseClient
+      .from("playlists")
+      .select("code, bar_name, playlist_name, created_at")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+    rows = data || [];
+  } catch {
+    profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Could not load playlists.</div>";
+    return;
+  }
 
   if (!rows || !rows.length) {
     profilePlaylists.innerHTML = "<div class=\"playlist-meta\">No playlists yet.</div>";
@@ -444,15 +488,16 @@ async function loadProfile() {
   }
 
   const codes = rows.map((row) => row.code);
-  const interactionsResult = await callWithTimeout(
-    () =>
-      supabaseClient
-        .from("requests")
-        .select("upvotes, room_id")
-        .in("room_id", codes),
-    4500
-  );
-  const interactions = interactionsResult?.data || [];
+  let interactions = [];
+  try {
+    const { data } = await supabaseClient
+      .from("requests")
+      .select("upvotes, room_id")
+      .in("room_id", codes);
+    interactions = data || [];
+  } catch {
+    interactions = [];
+  }
   const byRoom = (interactions || []).reduce((acc, row) => {
     const key = row.room_id;
     if (!key) return acc;
@@ -524,8 +569,10 @@ if (userDropdownProfile) {
   });
 }
 
-if (supabaseClient) {
-  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+(async () => {
+  const client = await ensureSupabaseClient();
+  if (!client) return;
+  client.auth.onAuthStateChange(async (_event, session) => {
     const user = session?.user || null;
     if (!user) {
       updateUserMenu(null);
@@ -535,4 +582,4 @@ if (supabaseClient) {
     await syncProfileNameFromAuth(user);
     updateUserMenu(user);
   });
-}
+})();
