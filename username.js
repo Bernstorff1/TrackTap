@@ -77,14 +77,37 @@ function isUsernameTakenError(error) {
   return false;
 }
 
+async function waitForSession(timeoutMs = 2000) {
+  if (!supabaseClient) return null;
+  const initial = await supabaseClient.auth.getSession();
+  if (initial?.data?.session?.user) return initial.data.session.user;
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timer = setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
+      subscription?.unsubscribe();
+      resolve(null);
+    }, timeoutMs);
+    const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user || null;
+      if (!user || resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      data.subscription.unsubscribe();
+      resolve(user);
+    });
+    const subscription = data?.subscription;
+  });
+}
+
 async function loadUsernameState() {
   if (!supabaseClient) {
     setHelper("Auth not available.", true);
     if (usernameSave) usernameSave.disabled = true;
     return;
   }
-  const { data } = await supabaseClient.auth.getSession();
-  const user = data?.session?.user;
+  const user = await waitForSession();
   if (!user) {
     window.location.assign("index.html?login=1");
     return;
