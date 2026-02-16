@@ -39,8 +39,6 @@ const guestSuccessBack = document.getElementById("guestSuccessBack");
 const hostSuccessBack = document.getElementById("hostSuccessBack");
 const OPEN_HOST_KEY = "tapster_open_host";
 const NEXT_KEY = "tapster_next";
-const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
-const USERNAME_SETUP_PATH = "username.html";
 
 const SUPABASE_URL = "https://xwafqfjhbiuogfjnlzln.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YWZxZmpoYml1b2dmam5semxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxODA3ODAsImV4cCI6MjA4NDc1Njc4MH0.H9a-BR3KdmlYbVAPHaDlNvpIsyzeKHAZzdZkGsKAqtU";
@@ -79,6 +77,61 @@ const infoMessage = document.getElementById("infoMessage");
 const infoOk = document.getElementById("infoOk");
 const closeInfo = document.getElementById("closeInfo");
 let currentAuthUser = null;
+
+if (supabaseClient) {
+  // Avoid showing a false "logged out" state before auth boot finishes.
+  if (loginBtn) loginBtn.classList.add("is-hidden");
+  if (userMenu) userMenu.classList.add("is-hidden");
+}
+
+function readStoredAuthUser() {
+  const extractUser = (value) => {
+    if (!value) return null;
+    if (value?.user?.id) return value.user;
+    if (value?.id && value?.aud) return value;
+    return null;
+  };
+  const parseRaw = (raw) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const nested =
+            extractUser(item) ||
+            extractUser(item?.currentSession) ||
+            extractUser(item?.session) ||
+            extractUser(item?.data?.session);
+          if (nested) return nested;
+        }
+      }
+      return (
+        extractUser(parsed) ||
+        extractUser(parsed?.currentSession) ||
+        extractUser(parsed?.session) ||
+        extractUser(parsed?.data?.session)
+      );
+    } catch {
+      return null;
+    }
+  };
+  const readFromStorage = (store) => {
+    if (!store) return null;
+    try {
+      const keys = Object.keys(store).filter(
+        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+      );
+      for (const key of keys) {
+        const user = parseRaw(store.getItem(key));
+        if (user?.id) return user;
+      }
+    } catch {
+      // ignore storage read errors
+    }
+    return null;
+  };
+  return readFromStorage(localStorage) || readFromStorage(sessionStorage);
+}
 
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
@@ -215,47 +268,48 @@ function authRedirectUrl() {
   return `${origin}${pathname}`;
 }
 
+function deriveAccountName(user) {
+  const metadata = user?.user_metadata || {};
+  const fullName = String(metadata.full_name || metadata.name || "").trim();
+  if (fullName) return fullName;
+  const given = String(metadata.given_name || "").trim();
+  const family = String(metadata.family_name || "").trim();
+  const combined = `${given} ${family}`.trim();
+  if (combined) return combined;
+  const emailLocal = String(user?.email || "").split("@")[0] || "";
+  return String(emailLocal || "User").trim() || "User";
+}
+
 async function ensureProfile(user) {
   if (!supabaseClient || !user) return;
+  const accountName = deriveAccountName(user);
   try {
     const { data } = await supabaseClient
       .from("profiles")
       .select("display_name, credits")
       .eq("id", user.id)
       .maybeSingle();
-    if (data) return data;
+    if (data) {
+      const currentName = String(data.display_name || "").trim();
+      if (accountName && currentName !== accountName) {
+        await supabaseClient
+          .from("profiles")
+          .update({ display_name: accountName, updated_at: new Date().toISOString() })
+          .eq("id", user.id);
+      }
+      return { ...data, display_name: accountName || currentName };
+    }
     await supabaseClient.from("profiles").insert({
       id: user.id,
-      display_name: null,
+      display_name: accountName,
       credits: 10,
       updated_at: new Date().toISOString(),
     });
-    return { display_name: null, credits: 10 };
+    return { display_name: accountName, credits: 10 };
   } catch {
     // ignore profile init errors
     return null;
   }
-}
-
-function normalizeLabel(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function requiresUsernameChoice(user, displayName) {
-  if (user?.user_metadata?.username_set === true) return false;
-  const name = normalizeLabel(displayName);
-  if (!name || name === "user") return true;
-  const email = normalizeLabel(user?.email);
-  if (email && name === email) return true;
-  return false;
-}
-
-function redirectToUsernameSetup() {
-  const pendingNext = sessionStorage.getItem(NEXT_KEY);
-  const fallbackNext = pendingNext || `${window.location.pathname}${window.location.search}` || "index.html";
-  sessionStorage.setItem(POST_USERNAME_NEXT_KEY, fallbackNext);
-  if (pendingNext) sessionStorage.removeItem(NEXT_KEY);
-  window.location.assign(USERNAME_SETUP_PATH);
 }
 
 async function syncSessionState(user, closeModalWhenLoggedIn) {
@@ -265,13 +319,8 @@ async function syncSessionState(user, closeModalWhenLoggedIn) {
     renderMyPlaylists();
     return;
   }
-  const profile = await ensureProfile(user);
-  const preferredDisplayName = String(profile?.display_name || "").trim();
-  updateUserStatus(user, preferredDisplayName);
-  if (profile && requiresUsernameChoice(user, profile?.display_name)) {
-    redirectToUsernameSetup();
-    return;
-  }
+  await ensureProfile(user);
+  updateUserStatus(user);
   renderMyPlaylists();
   if (closeModalWhenLoggedIn) closeAuthModal();
   const next = sessionStorage.getItem(NEXT_KEY);
@@ -377,7 +426,7 @@ function closeInfoModal() {
   document.body.classList.remove("modal-open");
 }
 
-function updateUserStatus(user, preferredDisplayName = "") {
+function updateUserStatus(user) {
   if (!loginBtn || !userMenu || !userAvatarBtn) return;
   if (!user) {
     loginBtn.classList.remove("is-hidden");
@@ -386,9 +435,8 @@ function updateUserStatus(user, preferredDisplayName = "") {
     if (guestAuth) guestAuth.classList.remove("is-hidden");
     return;
   }
-  const name = String(preferredDisplayName || "").trim() || user.user_metadata?.full_name || user.email || "User";
-  const initial = (name.trim()[0] || "B").toUpperCase();
-  userAvatarBtn.textContent = initial;
+  userAvatarBtn.textContent = "☰";
+  userAvatarBtn.setAttribute("aria-label", "Menu");
   loginBtn.classList.add("is-hidden");
   userMenu.classList.remove("is-hidden");
   if (guestInlineClose) guestInlineClose.classList.add("is-hidden");
@@ -1008,15 +1056,70 @@ if (supabaseClient) {
       };
       supabaseClient.auth
         .getSession()
-        .then(({ data }) => {
+        .then(async ({ data }) => {
           if (data?.session?.user) {
             complete(data.session);
             return;
           }
-          const timer = setTimeout(() => {
+          try {
+            const refreshed = await supabaseClient.auth.refreshSession();
+            if (refreshed?.data?.session?.user) {
+              complete(refreshed.data.session);
+              return;
+            }
+          } catch {
+            // ignore refresh errors and fall back to auth listener
+          }
+          try {
+            const fetchedUser = await supabaseClient.auth.getUser();
+            if (fetchedUser?.data?.user) {
+              complete({ user: fetchedUser.data.user });
+              return;
+            }
+          } catch {
+            // ignore
+          }
+          const storedUser = readStoredAuthUser();
+          if (storedUser) {
+            complete({ user: storedUser });
+            return;
+          }
+          const timer = setTimeout(async () => {
             subscription?.unsubscribe();
+            try {
+              const late = await supabaseClient.auth.getSession();
+              if (late?.data?.session?.user) {
+                complete(late.data.session);
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            try {
+              const lateRefresh = await supabaseClient.auth.refreshSession();
+              if (lateRefresh?.data?.session?.user) {
+                complete(lateRefresh.data.session);
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            try {
+              const lateUser = await supabaseClient.auth.getUser();
+              if (lateUser?.data?.user) {
+                complete({ user: lateUser.data.user });
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            const lateStoredUser = readStoredAuthUser();
+            if (lateStoredUser) {
+              complete({ user: lateStoredUser });
+              return;
+            }
             complete(null);
-          }, 1800);
+          }, 4500);
           const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
             if (!session?.user) return;
             clearTimeout(timer);

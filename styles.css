@@ -844,17 +844,6 @@ body.modal-open {
   color: #ff8da1;
 }
 
-.username-page {
-  min-height: calc(100vh - 140px);
-  display: grid;
-  align-content: center;
-}
-
-.username-card {
-  display: grid;
-  gap: 14px;
-}
-
 .tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

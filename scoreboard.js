@@ -9,7 +9,6 @@ const menuBtnScore = document.getElementById("menuBtnScore");
 const userAvatarBtnScore = document.getElementById("userAvatarBtnScore");
 const userDropdownScore = document.getElementById("userDropdownScore");
 const PREV_KEY = "tapster_prev";
-const POST_USERNAME_NEXT_KEY = "tapster_post_username_next";
 
 const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -27,30 +26,175 @@ function closeUserMenu() {
   userDropdownScore.classList.add("is-hidden");
 }
 
+function deriveAccountName(user) {
+  const metadata = user?.user_metadata || {};
+  const fullName = String(metadata.full_name || metadata.name || "").trim();
+  if (fullName) return fullName;
+  const given = String(metadata.given_name || "").trim();
+  const family = String(metadata.family_name || "").trim();
+  const combined = `${given} ${family}`.trim();
+  if (combined) return combined;
+  const emailLocal = String(user?.email || "").split("@")[0] || "";
+  return String(emailLocal || "User").trim() || "User";
+}
+
+function readStoredAuthUser() {
+  const extractUser = (value) => {
+    if (!value) return null;
+    if (value?.user?.id) return value.user;
+    if (value?.id && value?.aud) return value;
+    return null;
+  };
+  const parseRaw = (raw) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const nested =
+            extractUser(item) ||
+            extractUser(item?.currentSession) ||
+            extractUser(item?.session) ||
+            extractUser(item?.data?.session);
+          if (nested) return nested;
+        }
+      }
+      return (
+        extractUser(parsed) ||
+        extractUser(parsed?.currentSession) ||
+        extractUser(parsed?.session) ||
+        extractUser(parsed?.data?.session)
+      );
+    } catch {
+      return null;
+    }
+  };
+  const readFromStorage = (store) => {
+    if (!store) return null;
+    try {
+      const keys = Object.keys(store).filter(
+        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+      );
+      for (const key of keys) {
+        const user = parseRaw(store.getItem(key));
+        if (user?.id) return user;
+      }
+    } catch {
+      // ignore storage read errors
+    }
+    return null;
+  };
+  return readFromStorage(localStorage) || readFromStorage(sessionStorage);
+}
+
+async function getSessionUserWithRefresh() {
+  if (!supabaseClient) return null;
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    const user = data?.session?.user || null;
+    if (user) return user;
+  } catch {
+    // ignore and attempt refresh fallback
+  }
+  try {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    const user = refreshed?.data?.session?.user || null;
+    if (user) return user;
+  } catch {
+    // ignore and wait for delayed auth hydration
+  }
+  try {
+    const fetchedUser = await supabaseClient.auth.getUser();
+    if (fetchedUser?.data?.user) return fetchedUser.data.user;
+  } catch {
+    // ignore and continue fallback chain
+  }
+  const storedUser = readStoredAuthUser();
+  if (storedUser) return storedUser;
+  return await new Promise((resolve) => {
+    let resolved = false;
+    let timer = null;
+    let subscription = null;
+    const finish = (user) => {
+      if (resolved) return;
+      resolved = true;
+      if (timer) clearTimeout(timer);
+      subscription?.unsubscribe();
+      resolve(user || null);
+    };
+    const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) return;
+      finish(session.user);
+    });
+    subscription = authData?.subscription || null;
+    timer = setTimeout(async () => {
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        if (data?.session?.user) {
+          finish(data.session.user);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        const lateUser = await supabaseClient.auth.getUser();
+        if (lateUser?.data?.user) {
+          finish(lateUser.data.user);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      finish(readStoredAuthUser());
+    }, 4500);
+  });
+}
+
+async function syncProfileNameFromAuth(user) {
+  if (!supabaseClient || !user) return;
+  const accountName = deriveAccountName(user);
+  if (!accountName) return;
+  const now = new Date().toISOString();
+  try {
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) return;
+    const currentName = String(data?.display_name || "").trim();
+    if (!data) {
+      await supabaseClient.from("profiles").insert({
+        id: user.id,
+        display_name: accountName,
+        credits: 10,
+        updated_at: now,
+      });
+      return;
+    }
+    if (currentName !== accountName) {
+      await supabaseClient
+        .from("profiles")
+        .update({ display_name: accountName, updated_at: now })
+        .eq("id", user.id);
+    }
+  } catch {
+    // ignore profile sync errors
+  }
+}
+
 function updateUserMenu(user) {
   if (!menuBtnScore || !userAvatarBtnScore) return;
   if (user) {
-    const name = user.user_metadata?.full_name || user.email || "User";
-    userAvatarBtnScore.textContent = (name.trim()[0] || "B").toUpperCase();
+    userAvatarBtnScore.textContent = "☰";
+    userAvatarBtnScore.setAttribute("aria-label", "Menu");
     userAvatarBtnScore.classList.remove("is-hidden");
     menuBtnScore.classList.add("is-hidden");
   } else {
     userAvatarBtnScore.classList.add("is-hidden");
     menuBtnScore.classList.add("is-hidden");
   }
-}
-
-function normalizeLabel(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function requiresUsernameChoice(user, displayName) {
-  if (user?.user_metadata?.username_set === true) return false;
-  const name = normalizeLabel(displayName);
-  if (!name || name === "user") return true;
-  const email = normalizeLabel(user?.email);
-  if (email && name === email) return true;
-  return false;
 }
 
 async function signOut() {
@@ -114,26 +258,14 @@ function renderEmptySongs(message) {
 
 async function loadScoreboard() {
   if (!supabaseClient) return;
-  const { data: sessionData } = await supabaseClient.auth.getSession();
-  const user = sessionData?.session?.user || null;
+  const user = await getSessionUserWithRefresh();
   updateUserMenu(user);
   if (!user) {
     window.location.assign("index.html?login=1");
     return;
   }
-  const { data: ownProfile, error: ownProfileError } = await supabaseClient
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!ownProfileError && requiresUsernameChoice(user, ownProfile?.display_name)) {
-    sessionStorage.setItem(
-      POST_USERNAME_NEXT_KEY,
-      `${window.location.pathname}${window.location.search}` || "scoreboard.html"
-    );
-    window.location.assign("username.html");
-    return;
-  }
+  await syncProfileNameFromAuth(user);
+  updateUserMenu(user);
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: rows, error } = await supabaseClient
     .from("requests")
@@ -361,13 +493,21 @@ document.addEventListener("click", (event) => {
 }
 
 if (supabaseClient) {
-  supabaseClient.auth.getSession().then(({ data }) => {
-    updateUserMenu(data?.session?.user || null);
-  });
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    updateUserMenu(session?.user || null);
-    if (!session?.user) {
-      window.location.assign("index.html?login=1");
+  getSessionUserWithRefresh().then((user) => {
+    if (!user) {
+      updateUserMenu(null);
+      return;
     }
+    updateUserMenu(user);
+  });
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    const user = session?.user || null;
+    if (!user) {
+      updateUserMenu(null);
+      window.location.assign("index.html?login=1");
+      return;
+    }
+    await syncProfileNameFromAuth(user);
+    updateUserMenu(user);
   });
 }
