@@ -185,6 +185,13 @@ body::after {
   font-size: 12px;
 }
 
+.brand-meta {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  margin-top: 2px;
+}
+
 .role-toggle {
   display: flex;
   align-items: center;
@@ -1374,6 +1381,12 @@ textarea {
   }
 
   .brand-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-meta {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

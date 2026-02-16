@@ -36,6 +36,7 @@ const brandNameText = document.getElementById("brandNameText");
 const brandNameInput = document.getElementById("brandNameInput");
 const roleToggle = document.querySelector(".role-toggle");
 const brandMark = document.getElementById("brandMark");
+const playlistOwner = document.getElementById("playlistOwner");
 const roomNameEl = document.getElementById("roomName");
 const creditCount = document.getElementById("creditCount");
 const amountRange = document.getElementById("amountRange");
@@ -95,6 +96,7 @@ let boostersSchemaWarningShown = false;
 const DJ_BASE_SCORE = 10000;
 const SEED_COVER_URL = "assets/seed-superstition.svg";
 const requesterNames = new Map();
+const ownerNames = new Map();
 
 const defaultRequests = [
   {
@@ -408,8 +410,40 @@ function mapBarRow(row) {
     barName: row.bar_name || "Tapster",
     playlistName: row.playlist_name || "",
     displayName: row.playlist_name || row.bar_name || "Tapster",
+    ownerId: row.owner_id || "",
     hostPassword: row.host_password || "",
   };
+}
+
+function setPlaylistOwnerText(text) {
+  if (!playlistOwner) return;
+  playlistOwner.textContent = text;
+}
+
+async function hydrateOwnerName(bar) {
+  if (!supabaseClient || !bar) return;
+  const ownerId = String(bar.ownerId || "").trim();
+  if (!ownerId) {
+    setPlaylistOwnerText(`Created by ${bar.barName || "Tapster host"}`);
+    return;
+  }
+  if (ownerNames.has(ownerId)) {
+    const known = ownerNames.get(ownerId) || bar.barName || "Tapster host";
+    setPlaylistOwnerText(`Created by ${known}`);
+    return;
+  }
+  try {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("display_name")
+      .eq("id", ownerId)
+      .maybeSingle();
+    const ownerName = String(data?.display_name || "").trim() || bar.barName || "Tapster host";
+    ownerNames.set(ownerId, ownerName);
+    setPlaylistOwnerText(`Created by ${ownerName}`);
+  } catch {
+    setPlaylistOwnerText(`Created by ${bar.barName || "Tapster host"}`);
+  }
 }
 
 async function fetchBarRemote() {
@@ -426,6 +460,7 @@ async function fetchBarRemote() {
   }
   const bar = mapBarRow(data);
   setBrandName(bar.displayName);
+  void hydrateOwnerName(bar);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || "";
   if (barHostPassword && isHashedDjPassword(barHostPassword)) {
@@ -452,6 +487,7 @@ function applyBarChange(payload) {
   if (payload.new.code !== ROOM_ID) return;
   const bar = mapBarRow(payload.new);
   setBrandName(bar.displayName);
+  void hydrateOwnerName(bar);
   updateRoomChip(bar);
   barHostPassword = bar.hostPassword || barHostPassword;
   if (barHostPassword && isHashedDjPassword(barHostPassword)) {
