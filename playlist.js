@@ -2457,9 +2457,15 @@ async function exportPlayedToSpotify() {
     if (!res.ok || !payload?.ok) {
       if (payload?.error === "rate_limited") {
         const retryAfter = Number(payload?.retryAfter || 30);
-        const waitMinutes = Math.max(1, Math.ceil(retryAfter / 60));
+        const waitSeconds = Math.max(1, Math.ceil(retryAfter));
+        const readyAt = new Date(Date.now() + waitSeconds * 1000);
+        const readyAtLabel = readyAt.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
         showInfo(
-          `Spotify is being difficult to work with right now and is temporarily throttling Tapster. Please try again in about ${waitMinutes} minute${waitMinutes === 1 ? "" : "s"}.`
+          `Spotify rate limit reached. Please wait ${waitSeconds} seconds and try again at ${readyAtLabel}.`
         );
         return;
       }
