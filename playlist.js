@@ -660,8 +660,9 @@ async function initSupabase() {
       window.location.assign(`index.html?login=1&next=${next}`);
       return;
     }
-    await syncProfileNameFromAuth(user);
     updateProfileIcon(user);
+    // Never block auth UI rendering on profile sync roundtrips.
+    syncProfileNameFromAuth(user);
     loadCreditsForUser(user);
     loadSpotifyStatus(user);
     supabaseClient.auth.onAuthStateChange(async (_event, session) => {
@@ -672,8 +673,8 @@ async function initSupabase() {
         window.location.assign(`index.html?login=1&next=${next}`);
         return;
       }
-      await syncProfileNameFromAuth(sessionUser);
       updateProfileIcon(sessionUser);
+      syncProfileNameFromAuth(sessionUser);
       loadCreditsForUser(sessionUser);
       loadSpotifyStatus(sessionUser);
     });

@@ -324,8 +324,9 @@ async function syncSessionState(user, closeModalWhenLoggedIn) {
     renderMyPlaylists();
     return;
   }
-  await ensureProfile(user);
   updateUserStatus(user);
+  // Do not block topbar auth UI on profile writes/reads.
+  ensureProfile(user);
   renderMyPlaylists();
   if (closeModalWhenLoggedIn) closeAuthModal();
   const next = sessionStorage.getItem(NEXT_KEY);
@@ -450,10 +451,14 @@ function updateUserStatus(user) {
 
 function forceTopbarFallback() {
   if (!loginBtn || !userMenu) return;
-  const bothHidden = loginBtn.classList.contains("is-hidden") && userMenu.classList.contains("is-hidden");
-  if (!bothHidden) return;
   const storedUser = readStoredAuthUser();
-  updateUserStatus(storedUser || null);
+  if (storedUser) {
+    currentAuthUser = storedUser;
+    updateUserStatus(storedUser);
+    return;
+  }
+  const bothHidden = loginBtn.classList.contains("is-hidden") && userMenu.classList.contains("is-hidden");
+  if (bothHidden) updateUserStatus(null);
 }
 
 function parseRoute() {
