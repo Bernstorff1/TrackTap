@@ -2467,6 +2467,10 @@ async function exportPlayedToSpotify() {
         showInfo("Tapster could not match the played songs to Spotify tracks right now. Please try again shortly.");
         return;
       }
+      if (payload?.error === "spotify_not_connected" || payload?.error === "spotify_missing_access_token") {
+        showInfo("Spotify session missing. Please reconnect Spotify and try again.");
+        return;
+      }
       const reason = payload?.details || payload?.error || `http_${res.status}`;
       throw new Error(String(reason));
     }

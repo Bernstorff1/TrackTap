@@ -58,10 +58,20 @@ Deno.serve(async (req) => {
 
   const tokenData = await tokenRes.json();
   const expiresAt = new Date(Date.now() + Number(tokenData.expires_in || 0) * 1000).toISOString();
+  const { data: existingTokenRow } = await admin
+    .from("spotify_tokens")
+    .select("refresh_token")
+    .eq("user_id", stateRow.user_id)
+    .maybeSingle();
+  const nextRefreshToken =
+    String(tokenData.refresh_token || "").trim() ||
+    String((existingTokenRow as { refresh_token?: string } | null)?.refresh_token || "").trim() ||
+    null;
+
   await admin.from("spotify_tokens").upsert({
     user_id: stateRow.user_id,
     access_token: tokenData.access_token,
-    refresh_token: tokenData.refresh_token,
+    refresh_token: nextRefreshToken,
     scope: tokenData.scope,
     expires_at: expiresAt,
     updated_at: new Date().toISOString(),
