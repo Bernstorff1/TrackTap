@@ -178,6 +178,7 @@ function attachCodeSuggestions(inputEl, listEl) {
   let timer = null;
   inputEl.addEventListener("input", () => {
     const value = normalizeCode(inputEl.value);
+    const typedLength = value.length;
     inputEl.value = value;
     clearTimeout(timer);
     if (!value) {
@@ -186,6 +187,15 @@ function attachCodeSuggestions(inputEl, listEl) {
     }
     timer = setTimeout(async () => {
       const items = await fetchCodeSuggestions(value);
+      const topCode = String(items?.[0]?.code || "").toUpperCase();
+      if (topCode && topCode.startsWith(value) && topCode !== value && document.activeElement === inputEl) {
+        inputEl.value = topCode;
+        try {
+          inputEl.setSelectionRange(typedLength, topCode.length);
+        } catch {
+          // ignore unsupported selection ranges
+        }
+      }
       renderSuggestions(listEl, items, (code) => {
         inputEl.value = code;
         window.location.assign(`playlist.html?code=${encodeURIComponent(code)}`);
