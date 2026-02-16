@@ -133,6 +133,17 @@ function readStoredAuthUser() {
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
+async function callAuthWithTimeout(run, timeoutMs = 2200) {
+  try {
+    return await Promise.race([
+      run(),
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
 }
@@ -1049,86 +1060,76 @@ if (supabaseClient) {
   completeOAuthRedirect().finally(async () => {
     const bootSession = await new Promise((resolve) => {
       let resolved = false;
+      let hardTimer = null;
+      let softTimer = null;
+      let subscription = null;
       const complete = (value) => {
         if (resolved) return;
         resolved = true;
+        if (hardTimer) clearTimeout(hardTimer);
+        if (softTimer) clearTimeout(softTimer);
+        subscription?.unsubscribe();
         resolve(value);
       };
-      supabaseClient.auth
-        .getSession()
-        .then(async ({ data }) => {
-          if (data?.session?.user) {
-            complete(data.session);
+      hardTimer = setTimeout(() => {
+        const fallback = readStoredAuthUser();
+        complete(fallback ? { user: fallback } : null);
+      }, 7000);
+
+      (async () => {
+        const sessionResult = await callAuthWithTimeout(() => supabaseClient.auth.getSession());
+        if (sessionResult?.data?.session?.user) {
+          complete(sessionResult.data.session);
+          return;
+        }
+
+        const refreshed = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession());
+        if (refreshed?.data?.session?.user) {
+          complete(refreshed.data.session);
+          return;
+        }
+
+        const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
+        if (fetchedUser?.data?.user) {
+          complete({ user: fetchedUser.data.user });
+          return;
+        }
+
+        const storedUser = readStoredAuthUser();
+        if (storedUser) {
+          complete({ user: storedUser });
+          return;
+        }
+
+        const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+          if (!session?.user) return;
+          complete(session);
+        });
+        subscription = authData?.subscription || null;
+
+        softTimer = setTimeout(async () => {
+          const late = await callAuthWithTimeout(() => supabaseClient.auth.getSession(), 1800);
+          if (late?.data?.session?.user) {
+            complete(late.data.session);
             return;
           }
-          try {
-            const refreshed = await supabaseClient.auth.refreshSession();
-            if (refreshed?.data?.session?.user) {
-              complete(refreshed.data.session);
-              return;
-            }
-          } catch {
-            // ignore refresh errors and fall back to auth listener
-          }
-          try {
-            const fetchedUser = await supabaseClient.auth.getUser();
-            if (fetchedUser?.data?.user) {
-              complete({ user: fetchedUser.data.user });
-              return;
-            }
-          } catch {
-            // ignore
-          }
-          const storedUser = readStoredAuthUser();
-          if (storedUser) {
-            complete({ user: storedUser });
+          const lateRefresh = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession(), 1800);
+          if (lateRefresh?.data?.session?.user) {
+            complete(lateRefresh.data.session);
             return;
           }
-          const timer = setTimeout(async () => {
-            subscription?.unsubscribe();
-            try {
-              const late = await supabaseClient.auth.getSession();
-              if (late?.data?.session?.user) {
-                complete(late.data.session);
-                return;
-              }
-            } catch {
-              // ignore
-            }
-            try {
-              const lateRefresh = await supabaseClient.auth.refreshSession();
-              if (lateRefresh?.data?.session?.user) {
-                complete(lateRefresh.data.session);
-                return;
-              }
-            } catch {
-              // ignore
-            }
-            try {
-              const lateUser = await supabaseClient.auth.getUser();
-              if (lateUser?.data?.user) {
-                complete({ user: lateUser.data.user });
-                return;
-              }
-            } catch {
-              // ignore
-            }
-            const lateStoredUser = readStoredAuthUser();
-            if (lateStoredUser) {
-              complete({ user: lateStoredUser });
-              return;
-            }
-            complete(null);
-          }, 4500);
-          const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-            if (!session?.user) return;
-            clearTimeout(timer);
-            authData.subscription.unsubscribe();
-            complete(session);
-          });
-          const subscription = authData?.subscription;
-        })
-        .catch(() => complete(null));
+          const lateUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser(), 1800);
+          if (lateUser?.data?.user) {
+            complete({ user: lateUser.data.user });
+            return;
+          }
+          const lateStoredUser = readStoredAuthUser();
+          complete(lateStoredUser ? { user: lateStoredUser } : null);
+        }, 4500);
+      })().catch(() => {
+        const fallback = readStoredAuthUser();
+        complete(fallback ? { user: fallback } : null);
+      });
     });
     await syncSessionState(bootSession?.user || null, false);
   });

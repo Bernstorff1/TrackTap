@@ -84,28 +84,29 @@ function readStoredAuthUser() {
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
+async function callAuthWithTimeout(run, timeoutMs = 2200) {
+  try {
+    return await Promise.race([
+      run(),
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
 async function getSessionUserWithRefresh() {
   if (!supabaseClient) return null;
-  try {
-    const { data } = await supabaseClient.auth.getSession();
-    const user = data?.session?.user || null;
-    if (user) return user;
-  } catch {
-    // ignore and attempt refresh fallback
-  }
-  try {
-    const refreshed = await supabaseClient.auth.refreshSession();
-    const user = refreshed?.data?.session?.user || null;
-    if (user) return user;
-  } catch {
-    // ignore and wait for delayed auth hydration
-  }
-  try {
-    const fetchedUser = await supabaseClient.auth.getUser();
-    if (fetchedUser?.data?.user) return fetchedUser.data.user;
-  } catch {
-    // ignore and continue fallback chain
-  }
+  const sessionResult = await callAuthWithTimeout(() => supabaseClient.auth.getSession());
+  const sessionUser = sessionResult?.data?.session?.user || null;
+  if (sessionUser) return sessionUser;
+
+  const refreshed = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession());
+  const refreshedUser = refreshed?.data?.session?.user || null;
+  if (refreshedUser) return refreshedUser;
+
+  const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
+  if (fetchedUser?.data?.user) return fetchedUser.data.user;
   const storedUser = readStoredAuthUser();
   if (storedUser) return storedUser;
   return await new Promise((resolve) => {
@@ -125,23 +126,15 @@ async function getSessionUserWithRefresh() {
     });
     subscription = authData?.subscription || null;
     timer = setTimeout(async () => {
-      try {
-        const { data } = await supabaseClient.auth.getSession();
-        if (data?.session?.user) {
-          finish(data.session.user);
-          return;
-        }
-      } catch {
-        // ignore
+      const lateSession = await callAuthWithTimeout(() => supabaseClient.auth.getSession(), 1800);
+      if (lateSession?.data?.session?.user) {
+        finish(lateSession.data.session.user);
+        return;
       }
-      try {
-        const lateUser = await supabaseClient.auth.getUser();
-        if (lateUser?.data?.user) {
-          finish(lateUser.data.user);
-          return;
-        }
-      } catch {
-        // ignore
+      const lateUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser(), 1800);
+      if (lateUser?.data?.user) {
+        finish(lateUser.data.user);
+        return;
       }
       finish(readStoredAuthUser());
     }, 4500);
