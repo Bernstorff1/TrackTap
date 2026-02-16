@@ -176,7 +176,7 @@ function readStoredAuthSession() {
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
-async function callAuthWithTimeout(run, timeoutMs = 2200) {
+async function callAuthWithTimeout(run, timeoutMs = 5000) {
   try {
     return await Promise.race([
       run(),
@@ -256,7 +256,7 @@ async function getSessionUserWithRefresh() {
           }
         }
         finish(null);
-      }, 4500);
+      }, 9000);
     });
   } catch {
     return readStoredAuthUser();
@@ -378,10 +378,16 @@ async function loadScoreboard() {
     renderEmptySongs("Could not load scoreboard.");
     return;
   }
-  const user = await getSessionUserWithRefresh();
+  let user = await getSessionUserWithRefresh();
+  if (!user) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    user = await getSessionUserWithRefresh();
+  }
   updateUserMenu(user);
   if (!user) {
-    window.location.assign("index.html?login=1");
+    renderEmpty("Session expired. Please log in again.");
+    renderEmptyPlaylists("Session expired. Please log in again.");
+    renderEmptySongs("Session expired. Please log in again.");
     return;
   }
   await syncProfileNameFromAuth(user);

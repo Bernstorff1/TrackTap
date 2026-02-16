@@ -124,7 +124,7 @@ function readStoredAuthSession() {
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
-async function callAuthWithTimeout(run, timeoutMs = 2200) {
+async function callAuthWithTimeout(run, timeoutMs = 5000) {
   try {
     return await Promise.race([
       run(),
@@ -269,7 +269,7 @@ async function getSessionUserWithRefresh() {
           }
         }
         finish(null);
-      }, 4500);
+      }, 9000);
     });
   } catch {
     return readStoredAuthUser();
@@ -385,7 +385,11 @@ async function loadProfile() {
     profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Could not load playlists.</div>";
     return;
   }
-  const user = await getSessionUserWithRefresh();
+  let user = await getSessionUserWithRefresh();
+  if (!user) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    user = await getSessionUserWithRefresh();
+  }
   updateUserMenu(user || null);
   if (!user) {
     if (profileName) profileName.textContent = "Session expired. Please log in again.";
