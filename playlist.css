@@ -1042,6 +1042,27 @@ button.ghost {
   cursor: pointer;
 }
 
+button.spotify-btn,
+.btn.spotify-btn {
+  border: 1px solid #1aa34a;
+  background: #1db954;
+  color: #08120b;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(12, 44, 24, 0.45), 0 0 14px rgba(29, 185, 84, 0.3);
+}
+
+button.spotify-btn:hover,
+.btn.spotify-btn:hover {
+  background: #1ed760;
+  border-color: #1ed760;
+}
+
+button.spotify-btn:active,
+.btn.spotify-btn:active {
+  transform: translateY(0);
+  filter: brightness(0.97);
+}
+
 .fab {
   position: fixed;
   bottom: 24px;
