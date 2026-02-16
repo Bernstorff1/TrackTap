@@ -211,10 +211,7 @@ function attachCodeSuggestions(inputEl, listEl) {
 
 function authRedirectUrl() {
   const { origin, pathname } = window.location;
-  if (pathname.includes("/TrackTap/")) {
-    return `${origin}/TrackTap/`;
-  }
-  return `${origin}/`;
+  return `${origin}${pathname}`;
 }
 
 async function ensureProfile(user) {
@@ -288,15 +285,14 @@ async function completeOAuthRedirect() {
   if (!supabaseClient) return;
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
+  const state = params.get("state");
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const accessToken = hashParams.get("access_token");
   const refreshToken = hashParams.get("refresh_token");
-  if (code) {
-    const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
-    if (error) {
-      updateUserStatus(null);
-      return;
-    }
+  if (code && state) {
+    // OAuth callback from Supabase includes both code and state.
+    // Do not hard-fail UI state if exchange races with auto detection.
+    await supabaseClient.auth.exchangeCodeForSession(code);
     window.history.replaceState({}, "", window.location.pathname);
     return;
   }
