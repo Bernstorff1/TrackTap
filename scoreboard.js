@@ -188,75 +188,79 @@ async function callAuthWithTimeout(run, timeoutMs = 2200) {
 }
 
 async function getSessionUserWithRefresh() {
-  if (!supabaseClient) return null;
-  const sessionResult = await callAuthWithTimeout(() => supabaseClient.auth.getSession());
-  const sessionUser = sessionResult?.data?.session?.user || null;
-  if (sessionUser) return sessionUser;
+  try {
+    if (!supabaseClient) return null;
+    const sessionResult = await callAuthWithTimeout(() => supabaseClient.auth.getSession());
+    const sessionUser = sessionResult?.data?.session?.user || null;
+    if (sessionUser) return sessionUser;
 
-  const refreshed = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession());
-  const refreshedUser = refreshed?.data?.session?.user || null;
-  if (refreshedUser) return refreshedUser;
+    const refreshed = await callAuthWithTimeout(() => supabaseClient.auth.refreshSession());
+    const refreshedUser = refreshed?.data?.session?.user || null;
+    if (refreshedUser) return refreshedUser;
 
-  const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
-  if (fetchedUser?.data?.user) return fetchedUser.data.user;
-  const storedSession = readStoredAuthSession();
-  if (storedSession?.access_token && storedSession?.refresh_token) {
-    const restored = await callAuthWithTimeout(
-      () =>
-        supabaseClient.auth.setSession({
-          access_token: storedSession.access_token,
-          refresh_token: storedSession.refresh_token,
-        }),
-      2500
-    );
-    const restoredUser = restored?.data?.session?.user || null;
-    if (restoredUser) return restoredUser;
-  }
-  return await new Promise((resolve) => {
-    let resolved = false;
-    let timer = null;
-    let subscription = null;
-    const finish = (user) => {
-      if (resolved) return;
-      resolved = true;
-      if (timer) clearTimeout(timer);
-      subscription?.unsubscribe();
-      resolve(user || null);
-    };
-    const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) return;
-      finish(session.user);
-    });
-    subscription = authData?.subscription || null;
-    timer = setTimeout(async () => {
-      const lateSession = await callAuthWithTimeout(() => supabaseClient.auth.getSession(), 1800);
-      if (lateSession?.data?.session?.user) {
-        finish(lateSession.data.session.user);
-        return;
-      }
-      const lateUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser(), 1800);
-      if (lateUser?.data?.user) {
-        finish(lateUser.data.user);
-        return;
-      }
-      const lateStoredSession = readStoredAuthSession();
-      if (lateStoredSession?.access_token && lateStoredSession?.refresh_token) {
-        const restored = await callAuthWithTimeout(
-          () =>
-            supabaseClient.auth.setSession({
-              access_token: lateStoredSession.access_token,
-              refresh_token: lateStoredSession.refresh_token,
-            }),
-          2500
-        );
-        if (restored?.data?.session?.user) {
-          finish(restored.data.session.user);
+    const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
+    if (fetchedUser?.data?.user) return fetchedUser.data.user;
+    const storedSession = readStoredAuthSession();
+    if (storedSession?.access_token && storedSession?.refresh_token) {
+      const restored = await callAuthWithTimeout(
+        () =>
+          supabaseClient.auth.setSession({
+            access_token: storedSession.access_token,
+            refresh_token: storedSession.refresh_token,
+          }),
+        2500
+      );
+      const restoredUser = restored?.data?.session?.user || null;
+      if (restoredUser) return restoredUser;
+    }
+    return await new Promise((resolve) => {
+      let resolved = false;
+      let timer = null;
+      let subscription = null;
+      const finish = (user) => {
+        if (resolved) return;
+        resolved = true;
+        if (timer) clearTimeout(timer);
+        subscription?.unsubscribe();
+        resolve(user || null);
+      };
+      const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (!session?.user) return;
+        finish(session.user);
+      });
+      subscription = authData?.subscription || null;
+      timer = setTimeout(async () => {
+        const lateSession = await callAuthWithTimeout(() => supabaseClient.auth.getSession(), 1800);
+        if (lateSession?.data?.session?.user) {
+          finish(lateSession.data.session.user);
           return;
         }
-      }
-      finish(null);
-    }, 4500);
-  });
+        const lateUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser(), 1800);
+        if (lateUser?.data?.user) {
+          finish(lateUser.data.user);
+          return;
+        }
+        const lateStoredSession = readStoredAuthSession();
+        if (lateStoredSession?.access_token && lateStoredSession?.refresh_token) {
+          const restored = await callAuthWithTimeout(
+            () =>
+              supabaseClient.auth.setSession({
+                access_token: lateStoredSession.access_token,
+                refresh_token: lateStoredSession.refresh_token,
+              }),
+            2500
+          );
+          if (restored?.data?.session?.user) {
+            finish(restored.data.session.user);
+            return;
+          }
+        }
+        finish(null);
+      }, 4500);
+    });
+  } catch {
+    return readStoredAuthUser();
+  }
 }
 
 async function syncProfileNameFromAuth(user) {
