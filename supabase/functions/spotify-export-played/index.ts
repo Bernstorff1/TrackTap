@@ -590,6 +590,7 @@ Deno.serve(async (req) => {
   const rejectionSamples: string[] = [];
   const resolvedByUri = new Map<string, ResolvedTrack>();
   for (const item of resolvedTracks) resolvedByUri.set(item.uri, item);
+  let attemptedFreshPlaylistFallback = false;
   for (let i = 0; i < urisToAdd.length; i += 100) {
     const chunk = urisToAdd.slice(i, i + 100);
     const addRes = await fetch(`https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`, {
@@ -609,6 +610,59 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
+      }
+      if (addRes.status === 403 && !attemptedFreshPlaylistFallback) {
+        attemptedFreshPlaylistFallback = true;
+        const createRes = await fetch("https://api.spotify.com/v1/me/playlists", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${userSpotifyAccess}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: playlistName,
+            description: `Created from Tapster (Played) [tapster_room:${roomId}]`,
+            public: false,
+          }),
+        });
+        if (!createRes.ok) {
+          const details = await createRes.text().catch(() => "");
+          return new Response(
+            JSON.stringify({
+              error: "playlist_permission_denied",
+              details: details || "Spotify denied creating a writable playlist for the service account.",
+            }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+        const created = (await createRes.json()) as SpotifyPlaylist;
+        playlistId = String(created?.id || "");
+        playlistUrl = String(created?.external_urls?.spotify || "");
+        playlistUri = String(created?.uri || "");
+        if (!playlistId) {
+          return new Response(JSON.stringify({ error: "missing_playlist_id" }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        await admin
+          .from("spotify_room_exports")
+          .upsert(
+            {
+              room_id: roomId,
+              spotify_playlist_id: playlistId,
+              spotify_playlist_url: playlistUrl,
+              spotify_playlist_uri: playlistUri,
+              spotify_playlist_name: playlistName,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "room_id" }
+          );
+        i -= 100;
+        continue;
       }
       if (addRes.status === 403) {
         for (const uri of chunk) {
@@ -704,7 +758,7 @@ Deno.serve(async (req) => {
         error: "all_tracks_rejected",
         details:
           rejectionSamples[0] ||
-          "Spotify rejected all tracks for this account/market.",
+          "Spotify rejected all tracks for this account/market (possibly missing playlist write permission).",
       }),
       {
         status: 400,

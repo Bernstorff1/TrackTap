@@ -2485,6 +2485,16 @@ async function exportPlayedToSpotify() {
         showInfo("Spotify session missing. Please reconnect Spotify and try again.");
         return;
       }
+      if (payload?.error === "playlist_permission_denied") {
+        const raw = String(payload?.details || "").trim();
+        const spotifyReason = raw ? raw.replace(/\s+/g, " ").slice(0, 220) : "";
+        showInfo(
+          spotifyReason
+            ? `Spotify denied playlist write permission. Details: ${spotifyReason}`
+            : "Spotify denied playlist write permission for this service account."
+        );
+        return;
+      }
       const reason = payload?.details || payload?.error || `http_${res.status}`;
       throw new Error(String(reason));
     }
