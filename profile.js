@@ -386,7 +386,10 @@ async function loadProfile() {
   const user = await getSessionUserWithRefresh();
   updateUserMenu(user || null);
   if (!user) {
-    window.location.assign("index.html?login=1");
+    if (profileName) profileName.textContent = "Session expired. Please log in again.";
+    if (profilePlaylists) {
+      profilePlaylists.innerHTML = "<div class=\"playlist-meta\">Please log in to load playlists.</div>";
+    }
     return;
   }
 
