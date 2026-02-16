@@ -72,3 +72,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/playlist-suggestions/deno.json"
 entrypoint = "./functions/playlist-suggestions/index.ts"
+
+[functions.my-playlists]
+enabled = true
+verify_jwt = false
+import_map = "./functions/my-playlists/deno.json"
+entrypoint = "./functions/my-playlists/index.ts"

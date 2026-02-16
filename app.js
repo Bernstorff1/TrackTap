@@ -493,24 +493,38 @@ async function fetchBarByCode(code) {
 
 async function fetchMyPlaylists() {
   if (!supabaseClient) return [];
-  let { data } = await supabaseClient.auth.getSession();
-  let user = data?.session?.user;
-  if (!user) {
+  let session = null;
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    session = data?.session || null;
+  } catch {
+    session = null;
+  }
+  if (!session?.access_token) {
     try {
       const refreshed = await supabaseClient.auth.refreshSession();
-      user = refreshed?.data?.session?.user || null;
-      data = refreshed?.data || data;
+      session = refreshed?.data?.session || null;
     } catch {
-      user = null;
+      session = null;
     }
   }
-  if (!user) return null;
-  const { data: ownerRows } = await supabaseClient
-    .from("playlists")
-    .select("code, bar_name, playlist_name, created_at")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
-  return ownerRows || [];
+  if (!session?.access_token) return null;
+
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/my-playlists`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ accessToken: session.access_token }),
+    });
+    if (!res.ok) return [];
+    const payload = await res.json().catch(() => ({}));
+    return Array.isArray(payload?.items) ? payload.items : [];
+  } catch {
+    return [];
+  }
 }
 
 async function joinAsGuest(code) {
