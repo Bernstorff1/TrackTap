@@ -79,7 +79,7 @@ async function refreshTokenFromRefreshToken(
   refreshToken: string,
   spotifyClientId: string,
   spotifyClientSecret: string
-): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+): Promise<{ accessToken: string; refreshToken: string }> {
   const basic = btoa(`${spotifyClientId}:${spotifyClientSecret}`);
   const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
@@ -99,8 +99,7 @@ async function refreshTokenFromRefreshToken(
   const nextAccess = String(tokenData.access_token || "");
   if (!nextAccess) throw new Error("refresh_missing_access_token");
   const nextRefresh = String(tokenData.refresh_token || "").trim() || refreshToken;
-  const expiresIn = Number(tokenData.expires_in || 3600);
-  return { accessToken: nextAccess, refreshToken: nextRefresh, expiresIn };
+  return { accessToken: nextAccess, refreshToken: nextRefresh };
 }
 
 async function searchSpotifyTrackUri(tokens: string[], title: string, artist: string): Promise<string> {
@@ -257,54 +256,42 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: userTokenRow, error: userTokenError } = await admin
-    .from("spotify_tokens")
-    .select("user_id, access_token, refresh_token, expires_at")
-    .eq("user_id", userId)
+  const { data: serviceTokenRow, error: serviceTokenError } = await admin
+    .from("spotify_service_tokens")
+    .select("key, refresh_token, user_id")
+    .eq("key", "tapster_service")
     .maybeSingle();
-  if (userTokenError || !userTokenRow) {
-    return new Response(JSON.stringify({ error: "spotify_not_connected" }), {
-      status: 401,
+  if (serviceTokenError || !serviceTokenRow) {
+    return new Response(JSON.stringify({ error: "service_spotify_not_connected" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const serviceRefreshToken = String(serviceTokenRow.refresh_token || "").trim();
+  if (!serviceRefreshToken) {
+    return new Response(JSON.stringify({ error: "missing_service_refresh_token" }), {
+      status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  let userSpotifyAccess = String((userTokenRow as { access_token?: string })?.access_token || "").trim();
-  const userSpotifyRefresh = String((userTokenRow as { refresh_token?: string })?.refresh_token || "").trim();
-  const expiresAtRaw = String((userTokenRow as { expires_at?: string })?.expires_at || "").trim();
-  const expiresAtMs = expiresAtRaw ? Date.parse(expiresAtRaw) : NaN;
-  const shouldRefresh =
-    !!userSpotifyRefresh &&
-    (!userSpotifyAccess || !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now() + 60 * 1000);
-
-  if (shouldRefresh) {
-    try {
-      const refreshed = await refreshTokenFromRefreshToken(
-        userSpotifyRefresh,
-        spotifyClientId,
-        spotifyClientSecret
-      );
-      userSpotifyAccess = refreshed.accessToken;
-      const nextExpiresAt = new Date(Date.now() + refreshed.expiresIn * 1000).toISOString();
-      await admin
-        .from("spotify_tokens")
-        .update({
-          access_token: refreshed.accessToken,
-          refresh_token: refreshed.refreshToken,
-          expires_at: nextExpiresAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-    } catch {
-      return new Response(JSON.stringify({ error: "refresh_failed" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
-
-  if (!userSpotifyAccess) {
-    return new Response(JSON.stringify({ error: "spotify_missing_access_token" }), {
+  let userSpotifyAccess = "";
+  try {
+    const refreshed = await refreshTokenFromRefreshToken(
+      serviceRefreshToken,
+      spotifyClientId,
+      spotifyClientSecret
+    );
+    userSpotifyAccess = refreshed.accessToken;
+    await admin
+      .from("spotify_service_tokens")
+      .update({
+        refresh_token: refreshed.refreshToken,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key", "tapster_service");
+  } catch {
+    return new Response(JSON.stringify({ error: "refresh_failed" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
