@@ -82,6 +82,48 @@ function readStoredAuthUser() {
   return readFromStorage(localStorage) || readFromStorage(sessionStorage);
 }
 
+function readStoredAuthSession() {
+  const extractSession = (value) => {
+    if (!value) return null;
+    if (value?.access_token && value?.refresh_token) return value;
+    if (value?.currentSession?.access_token && value?.currentSession?.refresh_token) return value.currentSession;
+    if (value?.session?.access_token && value?.session?.refresh_token) return value.session;
+    if (value?.data?.session?.access_token && value?.data?.session?.refresh_token) return value.data.session;
+    return null;
+  };
+  const parseRaw = (raw) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const session = extractSession(item);
+          if (session) return session;
+        }
+      }
+      return extractSession(parsed);
+    } catch {
+      return null;
+    }
+  };
+  const readFromStorage = (store) => {
+    if (!store) return null;
+    try {
+      const keys = Object.keys(store).filter(
+        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+      );
+      for (const key of keys) {
+        const session = parseRaw(store.getItem(key));
+        if (session?.access_token && session?.refresh_token) return session;
+      }
+    } catch {
+      // ignore storage read errors
+    }
+    return null;
+  };
+  return readFromStorage(localStorage) || readFromStorage(sessionStorage);
+}
+
 async function callAuthWithTimeout(run, timeoutMs = 2200) {
   try {
     return await Promise.race([
@@ -134,8 +176,19 @@ async function getSessionUserWithRefresh() {
 
   const fetchedUser = await callAuthWithTimeout(() => supabaseClient.auth.getUser());
   if (fetchedUser?.data?.user) return fetchedUser.data.user;
-  const storedUser = readStoredAuthUser();
-  if (storedUser) return storedUser;
+  const storedSession = readStoredAuthSession();
+  if (storedSession?.access_token && storedSession?.refresh_token) {
+    const restored = await callAuthWithTimeout(
+      () =>
+        supabaseClient.auth.setSession({
+          access_token: storedSession.access_token,
+          refresh_token: storedSession.refresh_token,
+        }),
+      2500
+    );
+    const restoredUser = restored?.data?.session?.user || null;
+    if (restoredUser) return restoredUser;
+  }
   return await new Promise((resolve) => {
     let resolved = false;
     let timer = null;
@@ -163,7 +216,22 @@ async function getSessionUserWithRefresh() {
         finish(lateUser.data.user);
         return;
       }
-      finish(readStoredAuthUser());
+      const lateStoredSession = readStoredAuthSession();
+      if (lateStoredSession?.access_token && lateStoredSession?.refresh_token) {
+        const restored = await callAuthWithTimeout(
+          () =>
+            supabaseClient.auth.setSession({
+              access_token: lateStoredSession.access_token,
+              refresh_token: lateStoredSession.refresh_token,
+            }),
+          2500
+        );
+        if (restored?.data?.session?.user) {
+          finish(restored.data.session.user);
+          return;
+        }
+      }
+      finish(null);
     }, 4500);
   });
 }
