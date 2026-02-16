@@ -78,6 +78,7 @@ const infoTitle = document.getElementById("infoTitle");
 const infoMessage = document.getElementById("infoMessage");
 const infoOk = document.getElementById("infoOk");
 const closeInfo = document.getElementById("closeInfo");
+let currentAuthUser = null;
 
 function hostPasswordKey(code) {
   return `tapster_${code}_host_password`;
@@ -258,6 +259,7 @@ function redirectToUsernameSetup() {
 }
 
 async function syncSessionState(user, closeModalWhenLoggedIn) {
+  currentAuthUser = user || null;
   if (!user) {
     updateUserStatus(null);
     renderMyPlaylists();
@@ -499,6 +501,32 @@ async function fetchBarByCode(code) {
 
 async function fetchMyPlaylists() {
   if (!supabaseClient) return [];
+  async function waitForAuthSession(timeoutMs = 1800) {
+    try {
+      const initial = await supabaseClient.auth.getSession();
+      if (initial?.data?.session?.access_token) return initial.data.session;
+    } catch {
+      // ignore and try auth state listener fallback
+    }
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timer = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        subscription?.unsubscribe();
+        resolve(null);
+      }, timeoutMs);
+      const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (resolved || !session?.access_token) return;
+        resolved = true;
+        clearTimeout(timer);
+        data.subscription.unsubscribe();
+        resolve(session);
+      });
+      const subscription = data?.subscription;
+    });
+  }
+
   let session = null;
   try {
     const { data } = await supabaseClient.auth.getSession();
@@ -514,7 +542,12 @@ async function fetchMyPlaylists() {
       session = null;
     }
   }
-  if (!session?.access_token) return null;
+  if (!session?.access_token) {
+    session = await waitForAuthSession();
+  }
+  if (!session?.access_token) {
+    return currentAuthUser ? [] : null;
+  }
 
   try {
     const res = await fetch(`${FUNCTIONS_URL}/my-playlists`, {
@@ -966,8 +999,35 @@ if (userDropdown) {
 
 if (supabaseClient) {
   completeOAuthRedirect().finally(async () => {
-    const { data } = await supabaseClient.auth.getSession();
-    await syncSessionState(data?.session?.user || null, false);
+    const bootSession = await new Promise((resolve) => {
+      let resolved = false;
+      const complete = (value) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(value);
+      };
+      supabaseClient.auth
+        .getSession()
+        .then(({ data }) => {
+          if (data?.session?.user) {
+            complete(data.session);
+            return;
+          }
+          const timer = setTimeout(() => {
+            subscription?.unsubscribe();
+            complete(null);
+          }, 1800);
+          const { data: authData } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+            if (!session?.user) return;
+            clearTimeout(timer);
+            authData.subscription.unsubscribe();
+            complete(session);
+          });
+          const subscription = authData?.subscription;
+        })
+        .catch(() => complete(null));
+    });
+    await syncSessionState(bootSession?.user || null, false);
   });
   supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     await syncSessionState(session?.user || null, true);
