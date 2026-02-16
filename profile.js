@@ -30,9 +30,7 @@ function requiresUsernameChoice(user, displayName) {
   const name = normalizeLabel(displayName);
   if (!name || name === "user") return true;
   const email = normalizeLabel(user?.email);
-  const fullName = normalizeLabel(user?.user_metadata?.full_name);
   if (email && name === email) return true;
-  if (fullName && name === fullName) return true;
   return false;
 }
 
