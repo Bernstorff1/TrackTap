@@ -263,12 +263,14 @@ function redirectToUsernameSetup() {
 }
 
 async function syncSessionState(user, closeModalWhenLoggedIn) {
-  updateUserStatus(user || null);
   if (!user) {
+    updateUserStatus(null);
     renderMyPlaylists();
     return;
   }
   const profile = await ensureProfile(user);
+  const preferredDisplayName = String(profile?.display_name || "").trim();
+  updateUserStatus(user, preferredDisplayName);
   if (profile && requiresUsernameChoice(user, profile?.display_name)) {
     redirectToUsernameSetup();
     return;
@@ -379,7 +381,7 @@ function closeInfoModal() {
   document.body.classList.remove("modal-open");
 }
 
-function updateUserStatus(user) {
+function updateUserStatus(user, preferredDisplayName = "") {
   if (!loginBtn || !userMenu || !userAvatarBtn) return;
   if (!user) {
     loginBtn.classList.remove("is-hidden");
@@ -388,7 +390,7 @@ function updateUserStatus(user) {
     if (guestAuth) guestAuth.classList.remove("is-hidden");
     return;
   }
-  const name = user.user_metadata?.full_name || user.email || "User";
+  const name = String(preferredDisplayName || "").trim() || user.user_metadata?.full_name || user.email || "User";
   const initial = (name.trim()[0] || "B").toUpperCase();
   userAvatarBtn.textContent = initial;
   loginBtn.classList.add("is-hidden");
