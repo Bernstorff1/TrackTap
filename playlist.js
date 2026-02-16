@@ -324,6 +324,7 @@ let stripeWalletReadyTimeout = null;
 let lastFunctionsHealthCheckAt = 0;
 let playedSortMode = "latest";
 let spotifyExportBusy = false;
+let lastSpotifyConnectPlaybackErrorAt = 0;
 
 
 
@@ -933,12 +934,21 @@ async function checkRoomSpotifyStatus() {
     const nextStatus = (data?.spotify_status || "").trim();
     if (nextStatus === roomSpotifyStatus) return;
     roomSpotifyStatus = nextStatus;
-    if (nextStatus === "restricted_device" && isDj && isSpotifyConnected) {
-      showInfo("Active device does not allow auto-queue. Use AirPlay from your phone and try again.");
+    if (nextStatus === "restricted_device" && isSpotifyConnected) {
+      showSpotifyConnectPlaybackError();
     }
   } catch {
     // ignore
   }
+}
+
+function showSpotifyConnectPlaybackError(force = false) {
+  const now = Date.now();
+  if (!force && now - lastSpotifyConnectPlaybackErrorAt < 12000) return;
+  lastSpotifyConnectPlaybackErrorAt = now;
+  showInfo(
+    "Spotify Connect playback is currently blocked for this device. Use AirPlay (or cable) instead, then try again."
+  );
 }
 
 async function disconnectSpotify() {
@@ -1377,6 +1387,9 @@ function handleAction(id, action) {
   }
 
   if (action === "play" && isDj) {
+    if (isSpotifyConnected && roomSpotifyStatus === "restricted_device") {
+      showSpotifyConnectPlaybackError(true);
+    }
     item.status = "played";
     item.playedAt = Date.now();
     syncRequest(item);
