@@ -10,6 +10,32 @@ npm run dev
 
 Landing er på `/`, og playlisten ligger på `/playlist`.
 
+## Playwright UI smoke test
+
+Installer dependencies:
+
+```bash
+npm install
+```
+
+Kør screenshot-smoke-test (mobil viewport):
+
+```bash
+npm run test:e2e
+```
+
+Krav: Google Chrome installeret i `/Applications/Google Chrome.app`.
+
+Screenshots gemmes i:
+
+`artifacts/screenshots/`
+
+Åbn Playwright UI runner:
+
+```bash
+npm run test:e2e:ui
+```
+
 ## Supabase schema
 
 Kør følgende i Supabase SQL editor:

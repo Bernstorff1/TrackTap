@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const port = Number(process.env.PORT) || 5173;
+const host = process.env.HOST || "127.0.0.1";
 const root = __dirname;
 
 const mimeTypes = {
@@ -49,6 +50,6 @@ http
       serveFile(res, path.join(root, "index.html"));
     });
   })
-  .listen(port, () => {
-    console.log(`Tapster dev server running on http://localhost:${port}`);
+  .listen(port, host, () => {
+    console.log(`Tapster dev server running on http://${host}:${port}`);
   });

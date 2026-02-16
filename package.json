@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
-    "worker": "node worker.js"
+    "worker": "node worker.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "playwright": "^1.58.2"
   }
 }
