@@ -1016,9 +1016,9 @@ if (authPrimary) {
         setHelperMessage(authHelper, "Check your email for confirmation.", true);
         return;
       }
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      closeAuthModal();
+      await syncSessionState(signInData?.session?.user || null, true);
     } catch (error) {
       setHelperMessage(authHelper, error.message || "Could not log in.", true);
     }
