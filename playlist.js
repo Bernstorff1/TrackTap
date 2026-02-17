@@ -325,6 +325,10 @@ let lastFunctionsHealthCheckAt = 0;
 let playedSortMode = "latest";
 let spotifyExportBusy = false;
 let lastSpotifyConnectPlaybackErrorAt = 0;
+let autoQueueBusy = false;
+let autoQueueCooldownUntil = 0;
+let autoQueueLastSourceTrackUri = "";
+const AUTO_QUEUE_THRESHOLD_MS = 10000;
 
 
 
@@ -1197,11 +1201,12 @@ function normalizeSpotifyTrackUri(value) {
   return match ? `spotify:track:${match[1]}` : "";
 }
 
-async function enqueueTrackOnSpotify(item) {
+async function enqueueTrackOnSpotify(item, options = {}) {
+  const silent = !!options.silent;
   if (!supabaseClient) return false;
   const uri = normalizeSpotifyTrackUri(item?.spotifyAppUrl || item?.spotifyWebUrl || "");
   if (!uri) {
-    showInfo("This track does not have a valid Spotify track link.");
+    if (!silent) showInfo("This track does not have a valid Spotify track link.");
     return false;
   }
 
@@ -1214,8 +1219,10 @@ async function enqueueTrackOnSpotify(item) {
     session = null;
   }
   if (!session) {
-    const next = encodeURIComponent(window.location.href);
-    window.location.assign(`index.html?login=1&next=${next}`);
+    if (!silent) {
+      const next = encodeURIComponent(window.location.href);
+      window.location.assign(`index.html?login=1&next=${next}`);
+    }
     return false;
   }
 
@@ -1238,33 +1245,121 @@ async function enqueueTrackOnSpotify(item) {
       if (payload?.error === "rate_limited") {
         const retryAfter = Number(payload?.retryAfter || 30);
         const waitSeconds = Math.max(1, Math.ceil(retryAfter));
+        autoQueueCooldownUntil = Date.now() + waitSeconds * 1000;
         const readyAt = new Date(Date.now() + waitSeconds * 1000);
         const readyAtLabel = readyAt.toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
         });
-        showInfo(`Spotify rate limit reached. Wait ${waitSeconds} seconds and try again at ${readyAtLabel}.`);
+        if (!silent) {
+          showInfo(`Spotify rate limit reached. Wait ${waitSeconds} seconds and try again at ${readyAtLabel}.`);
+        }
         return false;
       }
       if (payload?.error === "restricted_device" || payload?.error === "queue_forbidden") {
         roomSpotifyStatus = "restricted_device";
-        showSpotifyConnectPlaybackError(true);
+        if (!silent) showSpotifyConnectPlaybackError(true);
         return false;
       }
       if (payload?.error === "spotify_not_connected") {
-        showInfo("Spotify is not connected for this room host. Connect Spotify and try again.");
+        if (!silent) showInfo("Spotify is not connected for this room host. Connect Spotify and try again.");
         return false;
       }
       const reason = payload?.details || payload?.error || `http_${res.status}`;
-      showInfo(`Could not queue track on Spotify (${reason}).`);
+      if (!silent) showInfo(`Could not queue track on Spotify (${reason}).`);
       return false;
     }
     roomSpotifyStatus = "ok";
     return true;
   } catch {
-    showInfo("Could not queue track on Spotify right now.");
+    if (!silent) showInfo("Could not queue track on Spotify right now.");
     return false;
+  }
+}
+
+async function fetchSpotifyPlaybackState(options = {}) {
+  const silent = !!options.silent;
+  if (!supabaseClient) return null;
+
+  let session = null;
+  try {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    if (refreshed?.error || !refreshed?.data?.session?.access_token) throw new Error("refresh_failed");
+    session = refreshed.data.session;
+  } catch {
+    session = null;
+  }
+  if (!session) return null;
+
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/spotify-playback-state`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        userId: currentUser?.id || "",
+        roomId: ROOM_ID,
+      }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload?.ok) {
+      if (payload?.error === "rate_limited") {
+        const retryAfter = Number(payload?.retryAfter || 30);
+        autoQueueCooldownUntil = Date.now() + Math.max(1, Math.ceil(retryAfter)) * 1000;
+        return null;
+      }
+      if (payload?.error === "restricted_device") {
+        roomSpotifyStatus = "restricted_device";
+        if (!silent) showSpotifyConnectPlaybackError(true);
+        return null;
+      }
+      return null;
+    }
+    roomSpotifyStatus = "ok";
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function pickNextQueuedRequest() {
+  const queued = requests.filter((item) => item.status === "queued").sort(sortQueued);
+  return queued.length ? queued[0] : null;
+}
+
+async function autoQueueFromPlayback() {
+  if (autoQueueBusy) return;
+  if (!isDj) return;
+  if (!ROOM_ID || !supabaseClient) return;
+  if (roomSpotifyStatus === "restricted_device") return;
+  if (Date.now() < autoQueueCooldownUntil) return;
+
+  autoQueueBusy = true;
+  try {
+    const playback = await fetchSpotifyPlaybackState({ silent: true });
+    if (!playback?.isPlaying) return;
+    const remainingMs = Number(playback?.remainingMs || 0);
+    if (!Number.isFinite(remainingMs) || remainingMs > AUTO_QUEUE_THRESHOLD_MS) return;
+    const sourceTrackUri = String(playback?.trackUri || "").trim();
+    if (sourceTrackUri && sourceTrackUri === autoQueueLastSourceTrackUri) return;
+
+    const nextItem = pickNextQueuedRequest();
+    if (!nextItem) return;
+    const queued = await enqueueTrackOnSpotify(nextItem, { silent: true });
+    if (!queued) return;
+
+    autoQueueLastSourceTrackUri = sourceTrackUri || `t${Date.now()}`;
+    nextItem.status = "played";
+    nextItem.playedAt = Date.now();
+    await syncRequest(nextItem);
+    persistRequests();
+    renderLists();
+  } finally {
+    autoQueueBusy = false;
   }
 }
 
@@ -2709,6 +2804,10 @@ setInterval(() => {
     if (timeEl) timeEl.textContent = formatTimeSince(item.createdAt);
   });
 }, 60000);
+
+setInterval(() => {
+  void autoQueueFromPlayback();
+}, 4000);
 
 const storedBrand = localStorage.getItem(`${STORAGE_PREFIX}brand_name`);
 setBrandName(storedBrand || "Tapster");

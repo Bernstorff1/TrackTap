@@ -55,6 +55,12 @@ verify_jwt = false
 import_map = "./functions/spotify-disconnect/deno.json"
 entrypoint = "./functions/spotify-disconnect/index.ts"
 
+[functions.spotify-playback-state]
+enabled = true
+verify_jwt = false
+import_map = "./functions/spotify-playback-state/deno.json"
+entrypoint = "./functions/spotify-playback-state/index.ts"
+
 [functions.stripe-create-payment-intent]
 enabled = true
 verify_jwt = false
