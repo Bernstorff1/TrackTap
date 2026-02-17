@@ -328,6 +328,7 @@ let lastSpotifyConnectPlaybackErrorAt = 0;
 let autoQueueBusy = false;
 let autoQueueCooldownUntil = 0;
 let autoQueueLastSourceTrackUri = "";
+let autoQueueWindowLockUntil = 0;
 const AUTO_QUEUE_THRESHOLD_MS = 10000;
 
 
@@ -1337,6 +1338,7 @@ async function autoQueueFromPlayback() {
   if (!ROOM_ID || !supabaseClient) return;
   if (roomSpotifyStatus === "restricted_device") return;
   if (Date.now() < autoQueueCooldownUntil) return;
+  if (Date.now() < autoQueueWindowLockUntil) return;
 
   autoQueueBusy = true;
   try {
@@ -1345,6 +1347,7 @@ async function autoQueueFromPlayback() {
     const remainingMs = Number(playback?.remainingMs || 0);
     if (!Number.isFinite(remainingMs) || remainingMs > AUTO_QUEUE_THRESHOLD_MS) return;
     const sourceTrackUri = String(playback?.trackUri || "").trim();
+    if (!sourceTrackUri) return;
     if (sourceTrackUri && sourceTrackUri === autoQueueLastSourceTrackUri) return;
 
     const nextItem = pickNextQueuedRequest();
@@ -1353,6 +1356,7 @@ async function autoQueueFromPlayback() {
     if (!queued) return;
 
     autoQueueLastSourceTrackUri = sourceTrackUri || `t${Date.now()}`;
+    autoQueueWindowLockUntil = Date.now() + 15000;
     nextItem.status = "played";
     nextItem.playedAt = Date.now();
     await syncRequest(nextItem);
