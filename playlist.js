@@ -953,14 +953,40 @@ function showSpotifyConnectPlaybackError(force = false) {
 
 async function disconnectSpotify() {
   if (!supabaseClient || !currentUser) return;
-  const { error } = await supabaseClient.from("spotify_tokens").delete().eq("user_id", currentUser.id);
-  if (error) {
+  let session = null;
+  try {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    if (refreshed?.error || !refreshed?.data?.session?.access_token) throw new Error("refresh_failed");
+    session = refreshed.data.session;
+  } catch {
+    session = null;
+  }
+  if (!session) {
+    showInfo("Could not disconnect Spotify. Please log in again.");
+    return;
+  }
+  const res = await fetch(`${FUNCTIONS_URL}/spotify-disconnect`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      accessToken: session.access_token,
+      roomId: ROOM_ID,
+    }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok || !payload?.ok) {
     showInfo("Could not disconnect Spotify. Try again.");
     return;
   }
   isSpotifyConnected = false;
+  roomSpotifyStatus = "";
+  sessionStorage.removeItem(SPOTIFY_CONNECTED_PENDING_KEY);
+  sessionStorage.removeItem(SPOTIFY_CONNECT_ROOM_KEY);
   updateSpotifyConnectButton();
-  await syncRoomSettings({ spotify_connected: false });
+  await syncRoomSettings({ spotify_connected: false, spotify_status: "" });
   flashNotice("You have disconnected succesfully", 1000);
 }
 
@@ -1467,14 +1493,12 @@ async function handleAction(id, action) {
   }
 
   if (action === "play" && isDj) {
-    if (isSpotifyConnected && roomSpotifyStatus === "restricted_device") {
+    if (roomSpotifyStatus === "restricted_device") {
       showSpotifyConnectPlaybackError(true);
       return;
     }
-    if (isSpotifyConnected) {
-      const queued = await enqueueTrackOnSpotify(item);
-      if (!queued) return;
-    }
+    const queued = await enqueueTrackOnSpotify(item);
+    if (!queued) return;
     item.status = "played";
     item.playedAt = Date.now();
     syncRequest(item);
