@@ -1164,6 +1164,84 @@ function openSpotify(appUrl, webUrl) {
   }, 800);
 }
 
+function normalizeSpotifyTrackUri(value) {
+  const raw = String(value || "").trim();
+  if (raw.startsWith("spotify:track:")) return raw;
+  const match = raw.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]+)/);
+  return match ? `spotify:track:${match[1]}` : "";
+}
+
+async function enqueueTrackOnSpotify(item) {
+  if (!supabaseClient) return false;
+  const uri = normalizeSpotifyTrackUri(item?.spotifyAppUrl || item?.spotifyWebUrl || "");
+  if (!uri) {
+    showInfo("This track does not have a valid Spotify track link.");
+    return false;
+  }
+
+  let session = null;
+  try {
+    const refreshed = await supabaseClient.auth.refreshSession();
+    if (refreshed?.error || !refreshed?.data?.session?.access_token) throw new Error("refresh_failed");
+    session = refreshed.data.session;
+  } catch {
+    session = null;
+  }
+  if (!session) {
+    const next = encodeURIComponent(window.location.href);
+    window.location.assign(`index.html?login=1&next=${next}`);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/spotify-enqueue-track`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        userId: currentUser?.id || "",
+        roomId: ROOM_ID,
+        trackUri: uri,
+      }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload?.ok) {
+      if (payload?.error === "rate_limited") {
+        const retryAfter = Number(payload?.retryAfter || 30);
+        const waitSeconds = Math.max(1, Math.ceil(retryAfter));
+        const readyAt = new Date(Date.now() + waitSeconds * 1000);
+        const readyAtLabel = readyAt.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        showInfo(`Spotify rate limit reached. Wait ${waitSeconds} seconds and try again at ${readyAtLabel}.`);
+        return false;
+      }
+      if (payload?.error === "restricted_device" || payload?.error === "queue_forbidden") {
+        roomSpotifyStatus = "restricted_device";
+        showSpotifyConnectPlaybackError(true);
+        return false;
+      }
+      if (payload?.error === "spotify_not_connected") {
+        showInfo("Spotify is not connected for this room host. Connect Spotify and try again.");
+        return false;
+      }
+      const reason = payload?.details || payload?.error || `http_${res.status}`;
+      showInfo(`Could not queue track on Spotify (${reason}).`);
+      return false;
+    }
+    roomSpotifyStatus = "ok";
+    return true;
+  } catch {
+    showInfo("Could not queue track on Spotify right now.");
+    return false;
+  }
+}
+
 async function spotifySearch(query) {
   const fnUrl = `${FUNCTIONS_URL}/spotify-search?q=${encodeURIComponent(query)}`;
   const res = await fetch(fnUrl, {
@@ -1357,12 +1435,14 @@ function renderCard(item) {
 function attachCardHandlers() {
   document.querySelectorAll(".card").forEach((card) => {
     card.querySelectorAll("[data-action]").forEach((btn) => {
-      btn.addEventListener("click", () => handleAction(card.dataset.id, btn.dataset.action));
+      btn.addEventListener("click", () => {
+        void handleAction(card.dataset.id, btn.dataset.action);
+      });
     });
   });
 }
 
-function handleAction(id, action) {
+async function handleAction(id, action) {
   const item = requests.find((r) => r.id === id);
   if (!item) return;
 
@@ -1389,6 +1469,11 @@ function handleAction(id, action) {
   if (action === "play" && isDj) {
     if (isSpotifyConnected && roomSpotifyStatus === "restricted_device") {
       showSpotifyConnectPlaybackError(true);
+      return;
+    }
+    if (isSpotifyConnected) {
+      const queued = await enqueueTrackOnSpotify(item);
+      if (!queued) return;
     }
     item.status = "played";
     item.playedAt = Date.now();

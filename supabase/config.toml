@@ -43,6 +43,12 @@ entrypoint = "./functions/spotify-export-played/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/spotify-export-played/*.html" ]
 
+[functions.spotify-enqueue-track]
+enabled = true
+verify_jwt = false
+import_map = "./functions/spotify-enqueue-track/deno.json"
+entrypoint = "./functions/spotify-enqueue-track/index.ts"
+
 [functions.stripe-create-payment-intent]
 enabled = true
 verify_jwt = false
